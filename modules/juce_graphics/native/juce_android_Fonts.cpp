@@ -145,7 +145,7 @@ public:
 
         // First check whether there's an embedded asset with this font name:
         typeface = GlobalRef (android.activity.callObjectMethod (JuceAppActivity.getTypeFaceFromAsset,
-                                                                 javaString ("fonts/" + name).get()));
+                                                                 javaString ("fonts/" + name + ".ttf").get()));
 
         if (typeface.get() == nullptr)
         {
