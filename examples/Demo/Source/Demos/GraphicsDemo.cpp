@@ -110,7 +110,7 @@ public:
         AffineTransform t;
 
         if (controls.animateRotation.getToggleState())
-            t = t.rotated (rotation.getValue() * float_Pi * 2.0f);
+            t = t.rotated (rotation.getValue() * MathConstants<float>::twoPi);
 
         if (controls.animateSize.getToggleState())
             t = t.scaled (0.3f + size.getValue() * 2.0f);
@@ -220,7 +220,7 @@ public:
 
         AffineTransform transform (AffineTransform::translation (clipImage.getWidth() / -2.0f,
                                                                  clipImage.getHeight() / -2.0f)
-                                   .rotated (clipImageAngle.getValue() * float_Pi * 2.0f)
+                                   .rotated (clipImageAngle.getValue() * MathConstants<float>::twoPi)
                                    .scaled (2.0f + clipImageSize.getValue() * 3.0f)
                                    .translated (getWidth() * 0.5f,
                                                 getHeight() * 0.5f));
@@ -485,9 +485,7 @@ public:
             if (svgDrawable != nullptr)
             {
                 // to make our icon the right size, we'll set its bounding box to the size and position that we want.
-                svgDrawable->setBoundingBox (RelativeParallelogram (Point<float> (-100, -100),
-                                                                    Point<float> (100, -100),
-                                                                    Point<float> (-100, 100)));
+                svgDrawable->setBoundingBox ({ -100.0f, -100.0f, 200.0f, 200.0f });
             }
         }
     }
@@ -573,7 +571,7 @@ public:
 
     void paint (Graphics& g) override
     {
-        g.fillCheckerBoard (getLocalBounds(), 48, 48,
+        g.fillCheckerBoard (getLocalBounds().toFloat(), 48.0f, 48.0f,
                             Colours::lightgrey, Colours::white);
     }
 

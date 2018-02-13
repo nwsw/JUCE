@@ -61,7 +61,7 @@ public:
         double cyclesPerSecond = MidiMessage::getMidiNoteInHertz (midiNoteNumber);
         double cyclesPerSample = cyclesPerSecond / getSampleRate();
 
-        angleDelta = cyclesPerSample * 2.0 * double_Pi;
+        angleDelta = cyclesPerSample * MathConstants<double>::twoPi;
     }
 
     void stopNote (float /*velocity*/, bool allowTailOff) override
@@ -94,7 +94,7 @@ public:
         // not implemented for the purposes of this demo!
     }
 
-    void renderNextBlock (AudioSampleBuffer& outputBuffer, int startSample, int numSamples) override
+    void renderNextBlock (AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override
     {
         if (angleDelta != 0.0)
         {

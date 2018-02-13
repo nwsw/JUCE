@@ -34,18 +34,17 @@ public:
     virtual ~Block();
 
     /** The different block types.
-
         @see Block::getType()
     */
     enum Type
     {
-        unknown = 0,
-        lightPadBlock,
-        liveBlock,
-        loopBlock,
-        developerControlBlock,
-        touchBlock,
-        seaboardBlock // on-screen seaboard view
+        unknown = 0,           /**< Unknown block type.           */
+        lightPadBlock,         /**< Lightpad block type.          */
+        liveBlock,             /**< Live control block type.      */
+        loopBlock,             /**< Loop control block type.      */
+        developerControlBlock, /**< Developer control block type. */
+        touchBlock,            /**< Touch control block type.     */
+        seaboardBlock          /**< Seaboard block type.          */
     };
 
     /** The Block class is reference-counted, so always use a Block::Ptr when
@@ -67,17 +66,22 @@ public:
     /** The Block's name */
     juce::String name;
 
+    /** This type is used for the unique block identifier. */
     using UID = uint64;
 
     /** This Block's UID.
-
         This will be globally unique, and remains constant for a particular device.
     */
     const UID uid;
 
     //==============================================================================
-    /** Returns the type of this device.
+    /** Two blocks are considered equal if they have the same UID. */
+    bool operator== (const Block& other) const noexcept     { return uid == other.uid; }
+    /** Two blocks are considered equal if they have the same UID. */
+    bool operator!= (const Block& other) const noexcept     { return uid != other.uid; }
 
+    //==============================================================================
+    /** Returns the type of this device.
         @see Block::Type
     */
     virtual Type getType() const = 0;
@@ -314,6 +318,7 @@ public:
                 for (int i = 0; i < numOptionNames; ++i)
                     optionNames[i] = other.optionNames[i];
             }
+
             return *this;
         }
 

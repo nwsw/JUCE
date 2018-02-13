@@ -42,9 +42,7 @@ struct SineWaveSound : public SynthesiserSound
 /** Our demo synth voice just plays a sine wave.. */
 struct SineWaveVoice  : public SynthesiserVoice
 {
-    SineWaveVoice()   : currentAngle (0), angleDelta (0), level (0), tailOff (0)
-    {
-    }
+    SineWaveVoice() {}
 
     bool canPlaySound (SynthesiserSound* sound) override
     {
@@ -61,7 +59,7 @@ struct SineWaveVoice  : public SynthesiserVoice
         double cyclesPerSecond = MidiMessage::getMidiNoteInHertz (midiNoteNumber);
         double cyclesPerSample = cyclesPerSecond / getSampleRate();
 
-        angleDelta = cyclesPerSample * 2.0 * double_Pi;
+        angleDelta = cyclesPerSample * MathConstants<double>::twoPi;
     }
 
     void stopNote (float /*velocity*/, bool allowTailOff) override
@@ -94,7 +92,7 @@ struct SineWaveVoice  : public SynthesiserVoice
         // not interested in controllers in this case.
     }
 
-    void renderNextBlock (AudioSampleBuffer& outputBuffer, int startSample, int numSamples) override
+    void renderNextBlock (AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override
     {
         if (angleDelta != 0.0)
         {
@@ -102,7 +100,7 @@ struct SineWaveVoice  : public SynthesiserVoice
             {
                 while (--numSamples >= 0)
                 {
-                    const float currentSample = (float) (std::sin (currentAngle) * level * tailOff);
+                    auto currentSample = (float) (std::sin (currentAngle) * level * tailOff);
 
                     for (int i = outputBuffer.getNumChannels(); --i >= 0;)
                         outputBuffer.addSample (i, startSample, currentSample);
@@ -125,7 +123,7 @@ struct SineWaveVoice  : public SynthesiserVoice
             {
                 while (--numSamples >= 0)
                 {
-                    const float currentSample = (float) (std::sin (currentAngle) * level);
+                    auto currentSample = (float) (std::sin (currentAngle) * level);
 
                     for (int i = outputBuffer.getNumChannels(); --i >= 0;)
                         outputBuffer.addSample (i, startSample, currentSample);
@@ -138,7 +136,7 @@ struct SineWaveVoice  : public SynthesiserVoice
     }
 
 private:
-    double currentAngle, angleDelta, level, tailOff;
+    double currentAngle = 0, angleDelta = 0, level = 0, tailOff = 0;
 };
 
 //==============================================================================
@@ -233,8 +231,7 @@ struct SynthAudioSource  : public AudioSource
 };
 
 //==============================================================================
-class AudioSynthesiserDemo  : public Component,
-                              private Button::Listener
+class AudioSynthesiserDemo  : public Component
 {
 public:
     AudioSynthesiserDemo()
@@ -247,13 +244,13 @@ public:
         addAndMakeVisible (sineButton);
         sineButton.setButtonText ("Use sine wave");
         sineButton.setRadioGroupId (321);
-        sineButton.addListener (this);
         sineButton.setToggleState (true, dontSendNotification);
+        sineButton.onClick = [this] { synthAudioSource.setUsingSineWaveSound(); };
 
         addAndMakeVisible (sampledButton);
         sampledButton.setButtonText ("Use sampled sound");
         sampledButton.setRadioGroupId (321);
-        sampledButton.addListener (this);
+        sampledButton.onClick = [this] { synthAudioSource.setUsingSampledSound(); };
 
         addAndMakeVisible (liveAudioDisplayComp);
 
@@ -299,15 +296,6 @@ private:
     ToggleButton sineButton;
     ToggleButton sampledButton;
     LiveScrollingAudioDisplay liveAudioDisplayComp;
-
-    //==============================================================================
-    void buttonClicked (Button* buttonThatWasClicked) override
-    {
-        if (buttonThatWasClicked == &sineButton)
-            synthAudioSource.setUsingSineWaveSound();
-        else if (buttonThatWasClicked == &sampledButton)
-            synthAudioSource.setUsingSampledSound();
-    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioSynthesiserDemo)
 };

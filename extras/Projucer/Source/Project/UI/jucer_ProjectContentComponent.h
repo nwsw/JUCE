@@ -66,7 +66,8 @@ public:
 
     void hideEditor();
     bool setEditorComponent (Component* editor, OpenDocumentManager::Document* doc);
-    Component* getEditorComponent() const    { return contentView; }
+    Component* getEditorComponentContent() const;
+    Component* getEditorComponent() const    { return contentView.get(); }
     Component& getSidebarComponent()         { return sidebarTabs; }
 
     bool goToPreviousFile();
@@ -128,6 +129,8 @@ public:
     void getCommandInfo (CommandID, ApplicationCommandInfo&) override;
     bool perform (const InvocationInfo&) override;
 
+    bool isSaveCommand (const CommandID id);
+
     void paint (Graphics&) override;
     void resized() override;
     void childBoundsChanged (Component*) override;
@@ -139,12 +142,12 @@ private:
     friend HeaderComponent;
 
     //==============================================================================
-    Project* project;
-    OpenDocumentManager::Document* currentDocument;
+    Project* project = nullptr;
+    OpenDocumentManager::Document* currentDocument = nullptr;
     RecentDocumentList recentDocumentList;
     ScopedPointer<Component> logo, translationTool, contentView, header;
 
-    TabbedComponent sidebarTabs;
+    TabbedComponent sidebarTabs  { TabbedButtonBar::TabsAtTop };
     ScopedPointer<ResizableEdgeComponent> resizerBar;
     ComponentBoundsConstrainer sidebarSizeConstrainer;
 

@@ -1,6 +1,94 @@
 JUCE breaking changes
 =====================
 
+Develop
+=======
+
+
+Version 5.2.1
+=============
+
+Change
+------
+Calling JUCEApplicationBase::quit() on Android will now really quit the app,
+rather than just placing it in background. Starting with API level 21 (Android 5.0), the
+app will not appear in recent apps list after calling quit(). Prior to API 21, the app will still
+appear in recent app lists but when a user chooses the app, a new instance of the app will be started.
+
+Possible Issues
+---------------
+Any code calling JUCEApplicationBase::quit() to place the app in background will close the app instead.
+
+Workaround
+----------
+Use Process::hide().
+
+Rationale
+---------
+The old behaviour JUCEApplicationBase::quit() was confusing JUCE code, as a new instance of JUCE
+app was attempted to be created, while the older instance was still running in background. This
+would result in assertions when starting a second instance.
+
+
+Change
+------
+On Windows, release builds will now link to the dynamic C++ runtime by default
+
+Possible Issues
+---------------
+If you are creating a new .jucer project, then your plug-in will now link to the dynamic
+C++ runtime by default, which means that you MUST ensure that the C++ runtime libraries
+exist on your customer's computers.
+
+Workaround
+----------
+If you are only targeting Windows 10, then the C++ runtime is now part of the system core
+components and will always exist on the computers of your customers (just like kernel332.dll,
+for example). If you are targeting Windows versions between Vista and Windows 10, then you
+should build your plug-in with the latest updated version of VS2015 or later, which ensures
+that it's linked to the universal runtime. Universal runtime is part of the system's core
+libraries on Windows 10 and on Windows versions Vista to 8.1, it will be available on your
+customer's computers via Windows Update. Unfortunately, if your customer has just installed
+Windows 8.1 to Vista on a fresh computer, then there is a chance that the update mechanism
+for the universal runtime hasn't triggered yet and your plug-in may still fail. Your installer
+should prompt the user to install all the Windows updates in this case or you can deploy the
+universal runtime as a redistributable with your installer. If you are targeting earlier
+versions of Windows then you should always include the runtime as a redistributable with your
+plug-in's installer. Alternatively, you can change the runtime linking to static (however,
+see 'Rationale' section).
+
+Rationale
+---------
+In a recent update to Windows 10, Microsoft has limited the number of fiber local storage
+(FLS) slots per process. Effectively, this limits how many plug-ins with static runtime
+linkage can be loaded into a DAW. In the worst case, this limits the total number of plug-ins
+to a maximum of 64 plug-ins. There is no workaround for DAW vendors and the only solution is
+to push plug-in vendors to use the dynamic runtime. To help with this, JUCE has decided to make
+dynamic runtime linkage the default in JUCE.
+
+
+Change
+------
+AudioProcessorGraph interface has changed in a number of ways - Node objects
+are now reference counted, there are different accessor methods to iterate them,
+and misc other small improvements to the API
+
+Possible Issues
+---------------
+The changes won't cause any silent errors in user code, but will require some
+manual refactoring
+
+Workaround
+----------
+Just find equivalent new methods to replace existing code.
+
+Rationale
+---------
+The graph class was extremely old and creaky, and these changes is the start of
+an improvement process that should eventually result in it being broken down
+into fundamental graph building block classes for use in other contexts.
+
+
 Version 5.2.0
 =============
 
@@ -181,7 +269,6 @@ few are required. This change to DynamicObject is required to support
 truncating those numbers.
 
 
-
 Version 5.1.0
 =============
 
@@ -295,7 +382,6 @@ confusing and unintuitive. Furthermore, this aligns JUCE's Atomic type with
 std::atomic.
 
 
-
 Version 4.3.1
 =============
 
@@ -324,7 +410,6 @@ AudioUnits, JUCE uses a hash function to generate a numeric id. However, some
 VST3/AudioUnit hosts (specifically Studio One) have a bug that ignore any
 parameters that have a negative parameter id. Therefore, the hash function for
 VST3/AudioUnits needed to be changed to only return positive-valued hashes.
-
 
 
 Version 4.3.0
@@ -391,7 +476,6 @@ in which the channel configurations appear in the legacy "Channel layout
 configuration" field.
 
 
-
 Version 4.2.1
 =============
 
@@ -430,4 +514,3 @@ their plug-in.
 Most plug-in backends differentiate between a parameter’s id an index, so this
 distinction was adopted starting with JUCE 4.2.1 by deriving the parameter’s
 unique id from the paramID property of AudioProcessorParameterWithID class.
-

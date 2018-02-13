@@ -405,7 +405,7 @@ private:
                 f->block->simplify (*this);
         }
 
-        Function* findFunction (FunctionID functionID) const noexcept
+        const Function* findFunction (FunctionID functionID) const noexcept
         {
             for (auto f : functions)
                 if (f->functionID == functionID)
@@ -414,7 +414,7 @@ private:
             return nullptr;
         }
 
-        NativeFunction* findNativeFunction (FunctionID functionID) const noexcept
+        const NativeFunction* findNativeFunction (FunctionID functionID) const noexcept
         {
             for (auto& f : nativeFunctions)
                 if (f.functionID == functionID)
@@ -2062,6 +2062,9 @@ private:
 
         void emitCast (CodeGenerator& cg, Type destType, int stackDepth) const
         {
+            if (arguments.size() != 1)
+                location.throwError (getTypeName (destType) + " cast operation requires a single argument");
+
             auto* arg = arguments.getReference (0);
             const auto sourceType = arg->getType (cg);
             arg->emit (cg, sourceType, stackDepth);

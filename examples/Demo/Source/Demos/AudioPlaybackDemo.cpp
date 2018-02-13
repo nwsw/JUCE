@@ -190,7 +190,10 @@ private:
 
     float timeToX (const double time) const
     {
-        return getWidth() * (float) ((time - visibleRange.getStart()) / (visibleRange.getLength()));
+        if (visibleRange.getLength() <= 0)
+            return 0;
+
+        return getWidth() * (float) ((time - visibleRange.getStart()) / visibleRange.getLength());
     }
 
     double xToTime (const float x) const
@@ -230,7 +233,6 @@ private:
 //==============================================================================
 class AudioPlaybackDemo  : public Component,
                            private FileBrowserListener,
-                           private Button::Listener,
                            private Slider::Listener,
                            private ChangeListener
 {
@@ -251,7 +253,7 @@ public:
 
         addAndMakeVisible (followTransportButton);
         followTransportButton.setButtonText ("Follow Transport");
-        followTransportButton.addListener (this);
+        followTransportButton.onClick = [this] { updateFollowTransportState(); };
 
         addAndMakeVisible (explanation);
         explanation.setText ("Select an audio file in the treeview above, and this page will display its waveform, and let you play it..", dontSendNotification);
@@ -273,9 +275,9 @@ public:
 
         addAndMakeVisible (startStopButton);
         startStopButton.setButtonText ("Play/Stop");
-        startStopButton.addListener (this);
         startStopButton.setColour (TextButton::buttonColourId, Colour (0xff79ed7f));
         startStopButton.setColour (TextButton::textColourOffId, Colours::black);
+        startStopButton.onClick = [this] { startOrStop(); };
 
         addAndMakeVisible (fileTreeComp);
 
@@ -302,7 +304,6 @@ public:
         deviceManager.removeAudioCallback (&audioSourcePlayer);
         fileTreeComp.removeListener (this);
         thumbnail->removeChangeListener (this);
-        followTransportButton.removeListener (this);
         zoomSlider.removeListener (this);
     }
 
@@ -361,11 +362,9 @@ private:
         // unload the previous file source and delete it..
         transportSource.stop();
         transportSource.setSource (nullptr);
-        currentAudioFileSource = nullptr;
+        currentAudioFileSource.reset();
 
-        AudioFormatReader* reader = formatManager.createReaderFor (audioFile);
-
-        if (reader != nullptr)
+        if (auto* reader = formatManager.createReaderFor (audioFile))
         {
             currentAudioFileSource = new AudioFormatReaderSource (reader, true);
 
@@ -375,6 +374,24 @@ private:
                                        &thread,                 // this is the background thread to use for reading-ahead
                                        reader->sampleRate);     // allows for sample rate correction
         }
+    }
+
+    void startOrStop()
+    {
+        if (transportSource.isPlaying())
+        {
+            transportSource.stop();
+        }
+        else
+        {
+            transportSource.setPosition (0);
+            transportSource.start();
+        }
+    }
+
+    void updateFollowTransportState()
+    {
+        thumbnail->setFollowsTransport (followTransportButton.getToggleState());
     }
 
     void selectionChanged() override
@@ -390,26 +407,6 @@ private:
     {
         if (sliderThatWasMoved == &zoomSlider)
             thumbnail->setZoomFactor (zoomSlider.getValue());
-    }
-
-    void buttonClicked (Button* buttonThatWasClicked) override
-    {
-        if (buttonThatWasClicked == &startStopButton)
-        {
-            if (transportSource.isPlaying())
-            {
-                transportSource.stop();
-            }
-            else
-            {
-                transportSource.setPosition (0);
-                transportSource.start();
-            }
-        }
-        else if (buttonThatWasClicked == &followTransportButton)
-        {
-            thumbnail->setFollowsTransport (followTransportButton.getToggleState());
-        }
     }
 
     void changeListenerCallback (ChangeBroadcaster* source) override

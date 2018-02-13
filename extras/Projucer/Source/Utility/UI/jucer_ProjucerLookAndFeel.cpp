@@ -34,6 +34,8 @@ ProjucerLookAndFeel::ProjucerLookAndFeel()
     setupColours();
 }
 
+ProjucerLookAndFeel::~ProjucerLookAndFeel() {}
+
 void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool isMouseOver, bool isMouseDown)
 {
     const auto area = button.getActiveArea();
@@ -398,7 +400,7 @@ void ProjucerLookAndFeel::drawProgressBar (Graphics& g, ProgressBar& progressBar
                             barBounds.getWidth() * 0.5f,
                             barBounds.getHeight() * 0.5f, 0.0f,
                             0.0f,
-                            2.0f * float_Pi,
+                            MathConstants<float>::twoPi,
                             true);
     g.strokePath (arcPath2, PathStrokeType (2.0f));
 
@@ -413,7 +415,8 @@ void ProjucerLookAndFeel::drawProgressBar (Graphics& g, ProgressBar& progressBar
                            degreesToRadians (endInDegrees),
                            true);
 
-    arcPath.applyTransform (AffineTransform::rotation (normalisedRotation * float_Pi * 2.25f, barBounds.getCentreX(), barBounds.getCentreY()));
+    arcPath.applyTransform (AffineTransform::rotation (normalisedRotation * MathConstants<float>::pi * 2.25f,
+                                                       barBounds.getCentreX(), barBounds.getCentreY()));
     g.strokePath (arcPath, PathStrokeType (2.0f));
 
     if (textToShow.isNotEmpty())
@@ -458,7 +461,8 @@ Path ProjucerLookAndFeel::getArrowPath (Rectangle<float> arrowZone, const int di
     if (filled)
         path.closeSubPath();
 
-    path.applyTransform (AffineTransform::rotation (direction * (float_Pi / 2.0f), arrowZone.getCentreX(), arrowZone.getCentreY()));
+    path.applyTransform (AffineTransform::rotation (direction * MathConstants<float>::halfPi,
+                                                    arrowZone.getCentreX(), arrowZone.getCentreY()));
 
     return path;
 }

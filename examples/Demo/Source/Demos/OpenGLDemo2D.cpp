@@ -31,7 +31,6 @@
 //==============================================================================
 class OpenGL2DShaderDemo  : public Component,
                             private CodeDocument::Listener,
-                            private ComboBox::Listener,
                             private Timer
 {
 public:
@@ -40,14 +39,14 @@ public:
     {
         setOpaque (true);
 
-        if (MainAppWindow* mw = MainAppWindow::getMainAppWindow())
+        if (auto* mw = MainAppWindow::getMainAppWindow())
             mw->setOpenGLRenderingEngine();
 
         addAndMakeVisible (statusLabel);
         statusLabel.setJustificationType (Justification::topLeft);
         statusLabel.setFont (Font (14.0f));
 
-        Array<ShaderPreset> presets (getPresets());
+        auto presets = getPresets();
         StringArray presetNames;
 
         for (int i = 0; i < presets.size(); ++i)
@@ -58,7 +57,7 @@ public:
         presetLabel.attachToComponent (&presetBox, true);
 
         addAndMakeVisible (presetBox);
-        presetBox.addListener (this);
+        presetBox.onChange = [this] { selectPreset (presetBox.getSelectedItemIndex()); };
 
         fragmentEditorComp.setOpaque (false);
         fragmentDocument.addListener (this);
@@ -69,16 +68,16 @@ public:
 
     ~OpenGL2DShaderDemo()
     {
-        shader = nullptr;
+        shader.reset();
     }
 
     void paint (Graphics& g) override
     {
-        g.fillCheckerBoard (getLocalBounds(), 48, 48, Colours::lightgrey, Colours::white);
+        g.fillCheckerBoard (getLocalBounds().toFloat(), 48.0f, 48.0f, Colours::lightgrey, Colours::white);
 
         if (shader == nullptr || shader->getFragmentShaderCode() != fragmentCode)
         {
-            shader = nullptr;
+            shader.reset();
 
             if (fragmentCode.isNotEmpty())
             {
@@ -89,7 +88,7 @@ public:
                 if (result.failed())
                 {
                     statusLabel.setText (result.getErrorMessage(), dontSendNotification);
-                    shader = nullptr;
+                    shader.reset();
                 }
             }
         }
@@ -150,11 +149,6 @@ private:
         stopTimer();
         fragmentCode = fragmentDocument.getAllContent();
         repaint();
-    }
-
-    void comboBoxChanged (ComboBox*) override
-    {
-        selectPreset (presetBox.getSelectedItemIndex());
     }
 
     struct ShaderPreset

@@ -172,7 +172,7 @@ public:
     }
 
 private:
-    AudioSampleBuffer testSound, recordedSound;
+    AudioBuffer<float> testSound, recordedSound;
     Array<int> spikePositions;
     int playingSampleNum, recordedSampleNum;
     CriticalSection lock;
@@ -211,7 +211,7 @@ private:
     }
 
     // Searches a buffer for a set of spikes that matches those in the test sound
-    int findOffsetOfSpikes (const AudioSampleBuffer& buffer) const
+    int findOffsetOfSpikes (const AudioBuffer<float>& buffer) const
     {
         const float minSpikeLevel = 5.0f;
         const double smooth = 0.975;
@@ -290,8 +290,7 @@ private:
 };
 
 //==============================================================================
-class AudioLatencyDemo  : public Component,
-                          private Button::Listener
+class AudioLatencyDemo  : public Component
 {
 public:
     AudioLatencyDemo()
@@ -318,8 +317,8 @@ public:
                             "microphone somewhere near your speakers...");
 
         addAndMakeVisible (startTestButton);
-        startTestButton.addListener (this);
         startTestButton.setButtonText ("Test Latency");
+        startTestButton.onClick = [this] { startTest(); };
 
         MainAppWindow::getSharedAudioDeviceManager().addAudioCallback (liveAudioScroller);
     }
@@ -327,9 +326,8 @@ public:
     ~AudioLatencyDemo()
     {
         MainAppWindow::getSharedAudioDeviceManager().removeAudioCallback (liveAudioScroller);
-        startTestButton.removeListener (this);
-        latencyTester = nullptr;
-        liveAudioScroller = nullptr;
+        latencyTester.reset();
+        liveAudioScroller.reset();
     }
 
     void startTest()
@@ -358,12 +356,6 @@ private:
     ScopedPointer<LiveScrollingAudioDisplay> liveAudioScroller;
     TextButton startTestButton;
     TextEditor resultsBox;
-
-    void buttonClicked (Button* buttonThatWasClicked) override
-    {
-        if (buttonThatWasClicked == &startTestButton)
-            startTest();
-    }
 
     void lookAndFeelChanged() override
     {

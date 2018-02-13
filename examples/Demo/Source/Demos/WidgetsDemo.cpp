@@ -27,7 +27,7 @@
 #include "../JuceDemoHeader.h"
 
 
-static void showBubbleMessage (Component* targetComponent, const String& textToShow,
+static void showBubbleMessage (Component& targetComponent, const String& textToShow,
                                ScopedPointer<BubbleMessageComponent>& bmc)
 {
     bmc = new BubbleMessageComponent();
@@ -39,14 +39,14 @@ static void showBubbleMessage (Component* targetComponent, const String& textToS
     }
     else
     {
-        targetComponent->getTopLevelComponent()->addChildComponent (bmc);
+        targetComponent.getTopLevelComponent()->addChildComponent (bmc);
     }
 
     AttributedString text (textToShow);
     text.setJustification (Justification::centred);
-    text.setColour (targetComponent->findColour (TextButton::textColourOffId));
+    text.setColour (targetComponent.findColour (TextButton::textColourOffId));
 
-    bmc->showAt (targetComponent, text, 2000, true, false);
+    bmc->showAt (&targetComponent, text, 2000, true, false);
 }
 
 //==============================================================================
@@ -155,7 +155,7 @@ struct SlidersPage  : public Component
 
         s = createSlider (false);
         s->setSliderStyle (Slider::Rotary);
-        s->setRotaryParameters (float_Pi * 1.2f, float_Pi * 2.8f, false);
+        s->setRotaryParameters (MathConstants<float>::pi * 1.2f, MathConstants<float>::pi * 2.8f, false);
         s->setTextBoxStyle (Slider::TextBoxRight, false, 70, 20);
         horizonalSliderArea.removeFromTop (15);
         s->setBounds (horizonalSliderArea.removeFromTop (70));
@@ -247,8 +247,7 @@ private:
 };
 
 //==============================================================================
-struct ButtonsPage   : public Component,
-                       public Button::Listener
+struct ButtonsPage   : public Component
 {
     ButtonsPage()
     {
@@ -352,58 +351,68 @@ struct ButtonsPage   : public Component,
         down.setImage (ImageCache::getFromMemory (BinaryData::juce_icon_png, BinaryData::juce_icon_pngSize));
         down.setOverlayColour (Colours::black.withAlpha (0.3f));
 
+        auto popupMessageCallback = [this]
+        {
+            if (auto* focused = Component::getCurrentlyFocusedComponent())
+                showBubbleMessage (*focused,
+                                   "This is a demo of the BubbleMessageComponent, which lets you pop up a message pointing "
+                                   "at a component or somewhere on the screen.\n\n"
+                                   "The message bubbles will disappear after a timeout period, or when the mouse is clicked.",
+                                   this->bubbleMessage);
+        };
+
         {
             // create an image-above-text button from these drawables..
-            DrawableButton* db = addToList (new DrawableButton ("Button 1", DrawableButton::ImageAboveTextLabel));
+            auto db = addToList (new DrawableButton ("Button 1", DrawableButton::ImageAboveTextLabel));
             db->setImages (&normal, &over, &down);
             db->setBounds (260, 60, 80, 80);
             db->setTooltip ("This is a DrawableButton with a label");
-            db->addListener (this);
+            db->onClick = popupMessageCallback;
         }
 
         {
             // create an image-only button from these drawables..
-            DrawableButton* db = addToList (new DrawableButton ("Button 2", DrawableButton::ImageFitted));
+            auto db = addToList (new DrawableButton ("Button 2", DrawableButton::ImageFitted));
             db->setImages (&normal, &over, &down);
             db->setClickingTogglesState (true);
             db->setBounds (370, 60, 80, 80);
             db->setTooltip ("This is an image-only DrawableButton");
-            db->addListener (this);
+            db->onClick = popupMessageCallback;
         }
 
         {
             // create an image-on-button-shape button from the same drawables..
-            DrawableButton* db = addToList (new DrawableButton ("Button 3", DrawableButton::ImageOnButtonBackground));
+            auto db = addToList (new DrawableButton ("Button 3", DrawableButton::ImageOnButtonBackground));
             db->setImages (&normal, 0, 0);
             db->setBounds (260, 160, 110, 25);
             db->setTooltip ("This is a DrawableButton on a standard button background");
-            db->addListener (this);
+            db->onClick = popupMessageCallback;
         }
 
         {
-            DrawableButton* db = addToList (new DrawableButton ("Button 4", DrawableButton::ImageOnButtonBackground));
+            auto db = addToList (new DrawableButton ("Button 4", DrawableButton::ImageOnButtonBackground));
             db->setImages (&normal, &over, &down);
             db->setClickingTogglesState (true);
             db->setColour (DrawableButton::backgroundColourId, Colours::white);
             db->setColour (DrawableButton::backgroundOnColourId, Colours::yellow);
             db->setBounds (400, 150, 50, 50);
             db->setTooltip ("This is a DrawableButton on a standard button background");
-            db->addListener (this);
+            db->onClick = popupMessageCallback;
         }
 
         {
-            ShapeButton* sb = addToList (new ShapeButton ("ShapeButton",
-                                                          getRandomDarkColour(),
-                                                          getRandomDarkColour(),
-                                                          getRandomDarkColour()));
+            auto sb = addToList (new ShapeButton ("ShapeButton",
+                                                  getRandomDarkColour(),
+                                                  getRandomDarkColour(),
+                                                  getRandomDarkColour()));
             sb->setShape (MainAppWindow::getJUCELogoPath(), false, true, false);
             sb->setBounds (260, 220, 200, 120);
         }
 
         {
-            ImageButton* ib = addToList (new ImageButton ("ImageButton"));
+            auto ib = addToList (new ImageButton ("ImageButton"));
 
-            Image juceImage = ImageCache::getFromMemory (BinaryData::juce_icon_png, BinaryData::juce_icon_pngSize);
+            auto juceImage = ImageCache::getFromMemory (BinaryData::juce_icon_png, BinaryData::juce_icon_pngSize);
 
             ib->setImages (true, true, true,
                            juceImage, 0.7f, Colours::transparentBlack,
@@ -428,15 +437,6 @@ private:
         components.add (newComp);
         addAndMakeVisible (newComp);
         return newComp;
-    }
-
-    void buttonClicked (Button* button) override
-    {
-        showBubbleMessage (button,
-                           "This is a demo of the BubbleMessageComponent, which lets you pop up a message pointing "
-                           "at a component or somewhere on the screen.\n\n"
-                           "The message bubbles will disappear after a timeout period, or when the mouse is clicked.",
-                           bubbleMessage);
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ButtonsPage)
@@ -481,16 +481,15 @@ struct MiscPage   : public Component
 
 //==============================================================================
 class ToolbarDemoComp   : public Component,
-                          public Slider::Listener,
-                          public Button::Listener
+                          private Slider::Listener
 {
 public:
     ToolbarDemoComp()
-        : depthLabel (String(), "Toolbar depth:"),
-          infoLabel (String(), "As well as showing off toolbars, this demo illustrates how to store "
-                               "a set of SVG files in a Zip file, embed that in your application, and read "
-                               "them back in at runtime.\n\nThe icon images here are taken from the open-source "
-                                "Tango icon project."),
+        : depthLabel ({}, "Toolbar depth:"),
+          infoLabel ({}, "As well as showing off toolbars, this demo illustrates how to store "
+                         "a set of SVG files in a Zip file, embed that in your application, and read "
+                         "them back in at runtime.\n\nThe icon images here are taken from the open-source "
+                         "Tango icon project."),
           orientationButton ("Vertical/Horizontal"),
           customiseButton ("Customise...")
     {
@@ -517,12 +516,12 @@ public:
         depthLabel.attachToComponent (&depthSlider, false);
 
         addAndMakeVisible (orientationButton);
-        orientationButton.addListener (this);
+        orientationButton.onClick = [this] { toolbar.setVertical (! toolbar.isVertical()); resized(); };
         orientationButton.changeWidthToFitText (22);
         orientationButton.setTopLeftPosition (depthSlider.getX(), depthSlider.getBottom() + 20);
 
         addAndMakeVisible (customiseButton);
-        customiseButton.addListener (this);
+        customiseButton.onClick = [this] { toolbar.showCustomisationDialog (factory); };
         customiseButton.changeWidthToFitText (22);
         customiseButton.setTopLeftPosition (orientationButton.getRight() + 20, orientationButton.getY());
     }
@@ -540,19 +539,6 @@ public:
     void sliderValueChanged (Slider*) override
     {
         resized();
-    }
-
-    void buttonClicked (Button* button) override
-    {
-        if (button == &orientationButton)
-        {
-            toolbar.setVertical (! toolbar.isVertical());
-            resized();
-        }
-        else if (button == &customiseButton)
-        {
-            toolbar.showCustomisationDialog (factory);
-        }
     }
 
 private:
@@ -964,8 +950,7 @@ private:
     //==============================================================================
     // This is a custom component containing a combo box, which we're going to put inside
     // our table's "rating" column.
-    class RatingColumnCustomComponent    : public Component,
-                                           private ComboBox::Listener
+    class RatingColumnCustomComponent    : public Component
     {
     public:
         RatingColumnCustomComponent (TableDemoComponent& td)  : owner (td)
@@ -980,8 +965,7 @@ private:
             comboBox.addItem ("swingin", 6);
             comboBox.addItem ("wild", 7);
 
-            // when the combo is changed, we'll get a callback.
-            comboBox.addListener (this);
+            comboBox.onChange = [this] { owner.setRating (row, comboBox.getSelectedId()); };
             comboBox.setWantsKeyboardFocus (false);
         }
 
@@ -996,11 +980,6 @@ private:
             row = newRow;
             columnId = newColumn;
             comboBox.setSelectedId (owner.getRating (row), dontSendNotification);
-        }
-
-        void comboBoxChanged (ComboBox*) override
-        {
-            owner.setRating (row, comboBox.getSelectedId());
         }
 
     private:
@@ -1160,7 +1139,7 @@ private:
 
         //==============================================================================
         // These methods implement the DragAndDropTarget interface, and allow our component
-        // to accept drag-and-drop of objects from other Juce components..
+        // to accept drag-and-drop of objects from other JUCE components..
 
         bool isInterestedInDragSource (const SourceDetails& /*dragSourceDetails*/) override
         {
@@ -1276,38 +1255,118 @@ private:
 };
 
 //==============================================================================
+struct BurgerMenuHeader  : public Component
+{
+    BurgerMenuHeader()
+    {
+        static const unsigned char burgerMenuPathData[]
+            = { 110,109,0,0,128,64,0,0,32,65,108,0,0,224,65,0,0,32,65,98,254,212,232,65,0,0,32,65,0,0,240,65,252,
+                169,17,65,0,0,240,65,0,0,0,65,98,0,0,240,65,8,172,220,64,254,212,232,65,0,0,192,64,0,0,224,65,0,0,
+                192,64,108,0,0,128,64,0,0,192,64,98,16,88,57,64,0,0,192,64,0,0,0,64,8,172,220,64,0,0,0,64,0,0,0,65,
+                98,0,0,0,64,252,169,17,65,16,88,57,64,0,0,32,65,0,0,128,64,0,0,32,65,99,109,0,0,224,65,0,0,96,65,108,
+                0,0,128,64,0,0,96,65,98,16,88,57,64,0,0,96,65,0,0,0,64,4,86,110,65,0,0,0,64,0,0,128,65,98,0,0,0,64,
+                254,212,136,65,16,88,57,64,0,0,144,65,0,0,128,64,0,0,144,65,108,0,0,224,65,0,0,144,65,98,254,212,232,
+                65,0,0,144,65,0,0,240,65,254,212,136,65,0,0,240,65,0,0,128,65,98,0,0,240,65,4,86,110,65,254,212,232,
+                65,0,0,96,65,0,0,224,65,0,0,96,65,99,109,0,0,224,65,0,0,176,65,108,0,0,128,64,0,0,176,65,98,16,88,57,
+                64,0,0,176,65,0,0,0,64,2,43,183,65,0,0,0,64,0,0,192,65,98,0,0,0,64,254,212,200,65,16,88,57,64,0,0,208,
+                65,0,0,128,64,0,0,208,65,108,0,0,224,65,0,0,208,65,98,254,212,232,65,0,0,208,65,0,0,240,65,254,212,
+                200,65,0,0,240,65,0,0,192,65,98,0,0,240,65,2,43,183,65,254,212,232,65,0,0,176,65,0,0,224,65,0,0,176,
+                65,99,101,0,0 };
+
+        Path p;
+        p.loadPathFromData (burgerMenuPathData, sizeof (burgerMenuPathData));
+        burgerButton.setShape (p, true, true, false);
+
+        burgerButton.onClick = [this] { showOrHide(); };
+        addAndMakeVisible (burgerButton);
+    }
+
+    ~BurgerMenuHeader()
+    {
+        MainAppWindow::getSharedSidePanel().showOrHide (false);
+    }
+
+private:
+    void paint (Graphics& g) override
+    {
+        auto titleBarBackgroundColour = getLookAndFeel().findColour (ResizableWindow::backgroundColourId)
+                                                        .darker();
+
+        g.setColour (titleBarBackgroundColour);
+        g.fillRect (getLocalBounds());
+    }
+
+    void resized() override
+    {
+        auto r = getLocalBounds();
+
+        burgerButton.setBounds (r.removeFromRight (40).withSizeKeepingCentre (20, 20));
+
+        titleLabel.setFont (Font (getHeight() * 0.5f, Font::plain));
+        titleLabel.setBounds (r);
+    }
+
+    void showOrHide()
+    {
+        auto& panel = MainAppWindow::getSharedSidePanel();
+
+        panel.showOrHide (! panel.isPanelShowing());
+    }
+
+    Label titleLabel { "titleLabel", "JUCE Demo" };
+    ShapeButton burgerButton { "burgerButton", Colours::lightgrey, Colours::lightgrey, Colours::white };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BurgerMenuHeader)
+};
+
+//==============================================================================
 class MenusDemo : public Component,
                   public MenuBarModel,
-                  public ChangeBroadcaster,
-                  private Button::Listener
+                  public ChangeBroadcaster
 {
 public:
+    //==============================================================================
+    enum MenuBarPosition
+    {
+        window,
+        globalMenuBar,
+        burger
+    };
+
+    //==============================================================================
     MenusDemo()
     {
         addAndMakeVisible (menuBar = new MenuBarComponent (this));
 
         popupButton.setButtonText ("Show Popup Menu");
         popupButton.setTriggeredOnMouseDown (true);
-        popupButton.addListener (this);
+        popupButton.onClick = [this] { getDummyPopupMenu().showMenuAsync (PopupMenu::Options().withTargetComponent (&popupButton), nullptr); };
         addAndMakeVisible (popupButton);
+        addChildComponent (menuHeader);
 
         setApplicationCommandManagerToWatch (&MainAppWindow::getApplicationCommandManager());
     }
 
     ~MenusDemo()
     {
+        MainAppWindow::getSharedSidePanel().setContent (nullptr, false);
+
        #if JUCE_MAC
         MenuBarModel::setMacMainMenu (nullptr);
        #endif
         PopupMenu::dismissAllActiveMenus();
-
-        popupButton.removeListener (this);
     }
 
     void resized() override
     {
         Rectangle<int> area (getLocalBounds());
-        menuBar->setBounds (area.removeFromTop (LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight()));
+
+        {
+            auto menuBarArea = area.removeFromTop (40);
+
+            menuBar->setBounds (menuBarArea.withHeight (LookAndFeel::getDefaultLookAndFeel().getDefaultMenuBarHeight()));
+            menuHeader.setBounds (menuBarArea);
+        }
 
         area.removeFromTop (20);
         area = area.removeFromTop (33);
@@ -1317,7 +1376,7 @@ public:
     //==============================================================================
     StringArray getMenuBarNames() override
     {
-        return { "Demo", "Look-and-feel", "Tabs", "Misc" };
+        return { "Demo", "Look-and-feel", "Menus", "Tabs", "Misc" };
     }
 
     PopupMenu getMenuForIndex (int menuIndex, const String& /*menuName*/) override
@@ -1350,10 +1409,6 @@ public:
             menu.addSeparator();
             menu.addCommandItem (commandManager, MainAppWindow::useNativeTitleBar);
 
-           #if JUCE_MAC
-            menu.addItem (6000, "Use Native Menu Bar");
-           #endif
-
            #if ! JUCE_LINUX
             menu.addCommandItem (commandManager, MainAppWindow::goToKioskMode);
            #endif
@@ -1373,6 +1428,14 @@ public:
         }
         else if (menuIndex == 2)
         {
+            menu.addItem (6000, "Inside Window",   true, menuBarPosition == window);
+           #if JUCE_MAC
+            menu.addItem (6001, "Global Menu Bar", true, menuBarPosition == globalMenuBar);
+           #endif
+            menu.addItem (6002, "Burger Menu",     true, menuBarPosition == burger);
+        }
+        else if (menuIndex == 3)
+        {
             if (TabbedComponent* tabs = findParentComponentOfClass<TabbedComponent>())
             {
                 menu.addItem (3000, "Tabs at Top",    true, tabs->getOrientation() == TabbedButtonBar::TabsAtTop);
@@ -1381,7 +1444,7 @@ public:
                 menu.addItem (3003, "Tabs on Right",  true, tabs->getOrientation() == TabbedButtonBar::TabsAtRight);
             }
         }
-        else if (menuIndex == 3)
+        else if (menuIndex == 4)
         {
             return getDummyPopupMenu();
         }
@@ -1394,20 +1457,28 @@ public:
         // most of our menu items are invoked automatically as commands, but we can handle the
         // other special cases here..
 
-        if (menuItemID == 6000)
+        if (menuItemID >= 6000 && menuItemID < 7000)
         {
-           #if JUCE_MAC
-            if (MenuBarModel::getMacMainMenu() != nullptr)
+            auto newPosition = static_cast<MenuBarPosition> (menuItemID - 6000);
+
+            if (newPosition != menuBarPosition)
             {
-                MenuBarModel::setMacMainMenu (nullptr);
-                menuBar->setModel (this);
+                menuBarPosition = newPosition;
+
+                if (menuBarPosition != burger)
+                    MainAppWindow::getSharedSidePanel().showOrHide (false);
+
+               #if JUCE_MAC
+                MenuBarModel::setMacMainMenu (menuBarPosition == globalMenuBar ? this : nullptr);
+               #endif
+                menuBar->setModel     (menuBarPosition == window ? this : nullptr);
+                menuBar->setVisible   (menuBarPosition == window);
+                burgerMenu.setModel   (menuBarPosition == burger ? this : nullptr);
+                menuHeader.setVisible (menuBarPosition == burger);
+
+                MainAppWindow::getSharedSidePanel().setContent (menuBarPosition == burger ? &burgerMenu : nullptr, false);
+                menuItemsChanged();
             }
-            else
-            {
-                menuBar->setModel (nullptr);
-                MenuBarModel::setMacMainMenu (this);
-            }
-           #endif
         }
         else if (menuItemID >= 3000 && menuItemID <= 3003)
         {
@@ -1431,6 +1502,9 @@ public:
 private:
     TextButton popupButton;
     ScopedPointer<MenuBarComponent> menuBar;
+    BurgerMenuComponent burgerMenu;
+    BurgerMenuHeader menuHeader;
+    MenuBarPosition menuBarPosition = window;
 
     PopupMenu getDummyPopupMenu()
     {
@@ -1443,31 +1517,27 @@ private:
         m.addCustomItem (5, new CustomMenuComponent());
         m.addSeparator();
 
-        for (int i = 0; i < 8; ++i)
+        if (menuBarPosition != burger)
         {
-            PopupMenu subMenu;
-
-            for (int s = 0; s < 8; ++s)
+            for (int i = 0; i < 8; ++i)
             {
-                PopupMenu subSubMenu;
+                PopupMenu subMenu;
 
-                for (int item = 0; item < 8; ++item)
-                    subSubMenu.addItem (1000 + (i * s * item), "Item " + String (item + 1));
+                for (int s = 0; s < 8; ++s)
+                {
+                    PopupMenu subSubMenu;
 
-                subMenu.addSubMenu ("Sub-sub menu " + String (s + 1), subSubMenu);
+                    for (int item = 0; item < 8; ++item)
+                        subSubMenu.addItem (1000 + (i * s * item), "Item " + String (item + 1));
+
+                    subMenu.addSubMenu ("Sub-sub menu " + String (s + 1), subSubMenu);
+                }
+
+                m.addSubMenu ("Sub menu " + String (i + 1), subMenu);
             }
-
-            m.addSubMenu ("Sub menu " + String (i + 1), subMenu);
         }
 
         return m;
-    }
-
-    //==============================================================================
-    void buttonClicked (Button* button) override
-    {
-        if (button == &popupButton)
-            getDummyPopupMenu().showMenuAsync (PopupMenu::Options().withTargetComponent (&popupButton), nullptr);
     }
 
     //==============================================================================
@@ -1508,9 +1578,11 @@ private:
         void timerCallback() override
         {
             Random random;
-            blobPosition.setBounds ((float) random.nextInt (getWidth()),
-                                    (float) random.nextInt (getHeight()),
-                                    40.0f, 30.0f);
+
+            if (! getBounds().isEmpty())
+                blobPosition.setBounds ((float) random.nextInt (getWidth()),
+                                        (float) random.nextInt (getHeight()),
+                                        40.0f, 30.0f);
             repaint();
         }
 
@@ -1573,7 +1645,7 @@ public:
 
         void mouseDown (const MouseEvent&) override
         {
-            showBubbleMessage (this,
+            showBubbleMessage (*this,
                                "This is a custom tab component\n"
                                "\n"
                                "You can use these to implement things like close-buttons "

@@ -106,7 +106,7 @@ private:
     ScopedPointer<AudioProcessor> audioProcessor;
     ScopedJuceInitialiser_GUI libraryInitialiser;
 
-    JuceAudioProcessor() JUCE_DELETED_FUNCTION;
+    JuceAudioProcessor() = delete;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JuceAudioProcessor)
 };
 
@@ -472,7 +472,7 @@ public:
                 if (MessageManager::getInstance()->isThisTheMessageThread())
                     instance->updateTrackProperties (trackProperties);
                 else
-                    MessageManager::callAsync ([trackProperties, instance] ()
+                    MessageManager::callAsync ([trackProperties, instance]
                                                { instance->updateTrackProperties (trackProperties); });
             }
         }
@@ -701,8 +701,8 @@ private:
                 parameterToMidiController[p].ctrlNumber = i;
 
                 parameters.addParameter (new Vst::Parameter (toString ("MIDI CC " + String (c) + "|" + String (i)),
-                                          static_cast<Vst::ParamID> (p) + parameterToMidiControllerOffset, 0, 0, 0,
-                                          Vst::ParameterInfo::kCanAutomate, Vst::kRootUnitId));
+                                         static_cast<Vst::ParamID> (p) + parameterToMidiControllerOffset, 0, 0, 0,
+                                         0, Vst::kRootUnitId));
             }
         }
     }
@@ -1164,7 +1164,6 @@ public:
         TEST_FOR_AND_RETURN_IF_VALID (targetIID, Vst::IAudioProcessor)
         TEST_FOR_AND_RETURN_IF_VALID (targetIID, Vst::IUnitInfo)
         TEST_FOR_AND_RETURN_IF_VALID (targetIID, Vst::IConnectionPoint)
-        TEST_FOR_AND_RETURN_IF_VALID (targetIID, Vst::ChannelContext::IInfoListener)
         TEST_FOR_COMMON_BASE_AND_RETURN_IF_VALID (targetIID, FUnknown, Vst::IComponent)
 
         if (doUIDsMatch (targetIID, JuceAudioProcessor::iid))
@@ -2721,6 +2720,8 @@ private:
   #define JucePlugin_Vst3Category Vst::PlugType::kFx
  #endif
 #endif
+
+using namespace juce;
 
 //==============================================================================
 // The VST3 plugin entry point.

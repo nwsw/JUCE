@@ -44,7 +44,8 @@ public:
         const float speed = 5.0f; // give each ball a fixed speed so we can
                                   // see the effects of thread priority on how fast
                                   // they actually go.
-        const float angle = Random::getSystemRandom().nextFloat() * float_Pi * 2.0f;
+
+        auto angle = Random::getSystemRandom().nextFloat() * MathConstants<float>::twoPi;
 
         dx = std::sin (angle) * speed;
         dy = std::cos (angle) * speed;
@@ -118,7 +119,7 @@ class DemoThread    : public BouncingBallComp,
 {
 public:
     DemoThread()
-        : Thread ("Juce Demo Thread")
+        : Thread ("JUCE Demo Thread")
     {
         interval = Random::getSystemRandom().nextInt (50) + 6;
 
@@ -204,14 +205,10 @@ private:
 
 //==============================================================================
 class MultithreadingDemo   : public Component,
-                             private Timer,
-                             private Button::Listener
+                             private Timer
 {
 public:
     MultithreadingDemo()
-        : pool (3),
-          controlButton ("Thread type"),
-          isUsingPool (false)
     {
         setOpaque (true);
 
@@ -220,7 +217,7 @@ public:
         controlButton.setTopLeftPosition (20, 20);
         controlButton.setTriggeredOnMouseDown (true);
         controlButton.setAlwaysOnTop (true);
-        controlButton.addListener (this);
+        controlButton.onClick = [this] { showMenu(); };
     }
 
     ~MultithreadingDemo()
@@ -250,9 +247,9 @@ public:
     }
 
 private:
-    ThreadPool pool;
-    TextButton controlButton;
-    bool isUsingPool;
+    ThreadPool pool { 3 };
+    TextButton controlButton { "Thread type" };
+    bool isUsingPool = false;
 
     OwnedArray<Component> balls;
 
@@ -318,7 +315,7 @@ private:
         }
     }
 
-    void buttonClicked (Button*) override
+    void showMenu()
     {
         PopupMenu m;
         m.addItem (1, "Use one thread per ball", true, ! isUsingPool);

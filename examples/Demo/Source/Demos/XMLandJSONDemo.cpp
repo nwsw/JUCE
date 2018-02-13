@@ -208,7 +208,6 @@ private:
 
 //==============================================================================
 class StringsDemo   : public Component,
-                      private ComboBox::Listener,
                       private CodeDocument::Listener
 {
 public:
@@ -225,9 +224,16 @@ public:
         setOpaque (true);
 
         addAndMakeVisible (typeBox);
-        typeBox.addListener (this);
         typeBox.addItem ("XML", 1);
         typeBox.addItem ("JSON", 2);
+
+        typeBox.onChange = [this]
+        {
+            if (typeBox.getSelectedId() == 1)
+                reset (xml);
+            else
+                reset (json);
+        };
 
         comboBoxLabel.setText ("Database Type:", dontSendNotification);
         comboBoxLabel.attachToComponent (&typeBox, true);
@@ -296,14 +302,14 @@ private:
     {
         // clear the current tree
         resultsTree.setRootItem (nullptr);
-        rootItem = nullptr;
+        rootItem.reset();
 
         // try and parse the editor's contents
         switch (typeBox.getSelectedItemIndex())
         {
             case xml:           rootItem = rebuildXml();        break;
             case json:          rootItem = rebuildJson();       break;
-            default:            rootItem = nullptr;             break;
+            default:            rootItem.reset();               break;
         }
 
         // if we have a valid TreeViewItem hide any old error messages and set our TreeView to use it
@@ -318,7 +324,7 @@ private:
     /** Parses the editors contects as XML. */
     TreeViewItem* rebuildXml()
     {
-        parsedXml = nullptr;
+        parsedXml.reset();
 
         XmlDocument doc (codeDocument.getAllContent());
         parsedXml = doc.getDocumentElement();
@@ -361,17 +367,6 @@ private:
             case xml:   codeDocument.replaceAllContent (BinaryData::treedemo_xml);      break;
             case json:  codeDocument.replaceAllContent (BinaryData::juce_module_info);  break;
             default:    codeDocument.replaceAllContent (String());                      break;
-        }
-    }
-
-    void comboBoxChanged (ComboBox* box) override
-    {
-        if (box == &typeBox)
-        {
-            if (typeBox.getSelectedId() == 1)
-                reset (xml);
-            else
-                reset (json);
         }
     }
 

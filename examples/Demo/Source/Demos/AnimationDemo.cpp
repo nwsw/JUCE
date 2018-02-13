@@ -121,7 +121,6 @@ struct BallComponent  : public Component
 
 //==============================================================================
 class AnimationDemo  : public Component,
-                       private Button::Listener,
                        private Timer
 {
 public:
@@ -132,10 +131,10 @@ public:
 
         for (int i = 11; --i >= 0;)
         {
-            Button* b = createButton();
+            auto* b = createButton();
             componentsToAnimate.add (b);
             addAndMakeVisible (b);
-            b->addListener (this);
+            b->onClick = [this] { triggerAnimation(); };
         }
 
         addAndMakeVisible (ballGenerator);
@@ -149,7 +148,7 @@ public:
         for (int i = 0; i < componentsToAnimate.size(); ++i)
         {
             const int newIndex = (i + 3) % componentsToAnimate.size();
-            const float angle = newIndex * 2.0f * float_Pi / componentsToAnimate.size();
+            const float angle = newIndex * MathConstants<float>::twoPi / componentsToAnimate.size();
             const float radius = getWidth() * 0.35f;
 
             Rectangle<int> r (getWidth()  / 2 + (int) (radius * std::sin (angle)) - 50,
@@ -253,12 +252,12 @@ private:
         return b;
     }
 
-    void buttonClicked (Button*) override
+    void triggerAnimation()
     {
         for (int i = 0; i < componentsToAnimate.size(); ++i)
         {
             const int newIndex = (i + 3 * cycleCount) % componentsToAnimate.size();
-            const float angle = newIndex * 2.0f * float_Pi / componentsToAnimate.size();
+            const float angle = newIndex * MathConstants<float>::twoPi / componentsToAnimate.size();
             const float radius = getWidth() * 0.35f;
 
             Rectangle<int> r (getWidth()  / 2 + (int) (radius * std::sin (angle)) - 50,

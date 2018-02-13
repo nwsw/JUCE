@@ -3,14 +3,12 @@
 
     This file was auto-generated!
 
-    It contains the basic startup code for a Juce application.
+    It contains the basic startup code for a JUCE application.
 
   ==============================================================================
 */
 
 APPHEADERS
-
-Component* createMainContentComponent();
 
 //==============================================================================
 class APPCLASSNAME  : public JUCEApplication
@@ -67,7 +65,7 @@ public:
                                                     DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar (true);
-            setContentOwned (createMainContentComponent(), true);
+            setContentOwned (new CONTENTCOMPCLASS(), true);
             setResizable (true, true);
 
             centreWithSize (getWidth(), getHeight());

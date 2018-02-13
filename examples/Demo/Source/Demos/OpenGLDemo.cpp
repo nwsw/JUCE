@@ -88,9 +88,9 @@ struct OpenGLDemoClasses
 
         void disable (OpenGLContext& openGLContext)
         {
-            if (position != nullptr)       openGLContext.extensions.glDisableVertexAttribArray (position->attributeID);
-            if (normal != nullptr)         openGLContext.extensions.glDisableVertexAttribArray (normal->attributeID);
-            if (sourceColour != nullptr)   openGLContext.extensions.glDisableVertexAttribArray (sourceColour->attributeID);
+            if (position != nullptr)        openGLContext.extensions.glDisableVertexAttribArray (position->attributeID);
+            if (normal != nullptr)          openGLContext.extensions.glDisableVertexAttribArray (normal->attributeID);
+            if (sourceColour != nullptr)    openGLContext.extensions.glDisableVertexAttribArray (sourceColour->attributeID);
             if (textureCoordIn != nullptr)  openGLContext.extensions.glDisableVertexAttribArray (textureCoordIn->attributeID);
         }
 
@@ -144,20 +144,18 @@ struct OpenGLDemoClasses
         Shape (OpenGLContext& openGLContext)
         {
             if (shapeFile.load (BinaryData::teapot_obj).wasOk())
-                for (int i = 0; i < shapeFile.shapes.size(); ++i)
-                    vertexBuffers.add (new VertexBuffer (openGLContext, *shapeFile.shapes.getUnchecked(i)));
-
+                for (auto* s : shapeFile.shapes)
+                    vertexBuffers.add (new VertexBuffer (openGLContext, *s));
         }
 
         void draw (OpenGLContext& openGLContext, Attributes& attributes)
         {
-            for (int i = 0; i < vertexBuffers.size(); ++i)
+            for (auto* vertexBuffer : vertexBuffers)
             {
-                VertexBuffer& vertexBuffer = *vertexBuffers.getUnchecked (i);
-                vertexBuffer.bind();
+                vertexBuffer->bind();
 
                 attributes.enable (openGLContext);
-                glDrawElements (GL_TRIANGLES, vertexBuffer.numIndices, GL_UNSIGNED_INT, 0);
+                glDrawElements (GL_TRIANGLES, vertexBuffer->numIndices, GL_UNSIGNED_INT, 0);
                 attributes.disable (openGLContext);
             }
         }
@@ -331,18 +329,14 @@ struct OpenGLDemoClasses
     */
     class DemoControlsOverlay  : public Component,
                                  private CodeDocument::Listener,
-                                 private ComboBox::Listener,
                                  private Slider::Listener,
-                                 private Button::Listener,
                                  private Timer
     {
     public:
         DemoControlsOverlay (OpenGLDemo& d)
             : demo (d),
               vertexEditorComp (vertexDocument, nullptr),
-              fragmentEditorComp (fragmentDocument, nullptr),
-              tabbedComp (TabbedButtonBar::TabsAtLeft),
-              showBackgroundToggle ("Draw 2D graphics in background")
+              fragmentEditorComp (fragmentDocument, nullptr)
         {
             addAndMakeVisible (statusLabel);
             statusLabel.setJustificationType (Justification::topLeft);
@@ -366,7 +360,7 @@ struct OpenGLDemoClasses
             speedLabel.attachToComponent (&speedSlider, true);
 
             addAndMakeVisible (showBackgroundToggle);
-            showBackgroundToggle.addListener (this);
+            showBackgroundToggle.onClick = [this] { demo.doBackgroundDrawing = showBackgroundToggle.getToggleState(); };
 
             addAndMakeVisible (tabbedComp);
             tabbedComp.setTabBarDepth (25);
@@ -383,13 +377,13 @@ struct OpenGLDemoClasses
             textures.add (new DynamicTexture());
 
             addAndMakeVisible (textureBox);
-            textureBox.addListener (this);
+            textureBox.onChange = [this] { selectTexture (textureBox.getSelectedId()); };
             updateTexturesList();
 
             addAndMakeVisible (presetBox);
-            presetBox.addListener (this);
+            presetBox.onChange = [this] { selectPreset (presetBox.getSelectedItemIndex()); };
 
-            Array<ShaderPreset> presets (getPresets());
+            auto presets = getPresets();
             StringArray presetNames;
 
             for (int i = 0; i < presets.size(); ++i)
@@ -417,11 +411,11 @@ struct OpenGLDemoClasses
 
         void resized() override
         {
-            Rectangle<int> area (getLocalBounds().reduced (4));
+            auto area = getLocalBounds().reduced (4);
 
-            Rectangle<int> top (area.removeFromTop (75));
+            auto top = area.removeFromTop (75);
 
-            Rectangle<int> sliders (top.removeFromRight (area.getWidth() / 2));
+            auto sliders = top.removeFromRight (area.getWidth() / 2);
             showBackgroundToggle.setBounds (sliders.removeFromBottom (25));
             speedSlider.setBounds (sliders.removeFromBottom (25));
             sizeSlider.setBounds (sliders.removeFromBottom (25));
@@ -429,9 +423,9 @@ struct OpenGLDemoClasses
             top.removeFromRight (70);
             statusLabel.setBounds (top);
 
-            Rectangle<int> shaderArea (area.removeFromBottom (area.getHeight() / 2));
+            auto shaderArea = area.removeFromBottom (area.getHeight() / 2);
 
-            Rectangle<int> presets (shaderArea.removeFromTop (25));
+            auto presets = shaderArea.removeFromTop (25);
             presets.removeFromLeft (100);
             presetBox.setBounds (presets.removeFromLeft (150));
             presets.removeFromLeft (100);
@@ -525,11 +519,6 @@ struct OpenGLDemoClasses
             demo.rotationSpeed = (float) speedSlider.getValue();
         }
 
-        void buttonClicked (Button*) override
-        {
-            demo.doBackgroundDrawing = showBackgroundToggle.getToggleState();
-        }
-
         enum { shaderLinkDelay = 500 };
 
         void codeDocumentTextInserted (const String& /*newText*/, int /*insertIndex*/) override
@@ -547,14 +536,6 @@ struct OpenGLDemoClasses
             stopTimer();
             demo.setShaderProgram (vertexDocument.getAllContent(),
                                    fragmentDocument.getAllContent());
-        }
-
-        void comboBoxChanged (ComboBox* box) override
-        {
-            if (box == &presetBox)
-                selectPreset (presetBox.getSelectedItemIndex());
-            else if (box == &textureBox)
-                selectTexture (textureBox.getSelectedId());
         }
 
         void lookAndFeelChanged() override
@@ -575,13 +556,13 @@ struct OpenGLDemoClasses
 
         CodeDocument vertexDocument, fragmentDocument;
         CodeEditorComponent vertexEditorComp, fragmentEditorComp;
-        TabbedComponent tabbedComp;
+        TabbedComponent tabbedComp { TabbedButtonBar::TabsAtLeft };
 
         ComboBox presetBox, textureBox;
         Label presetLabel, textureLabel;
 
         Slider speedSlider, sizeSlider;
-        ToggleButton showBackgroundToggle;
+        ToggleButton showBackgroundToggle { "Draw 2D graphics in background" };
 
         OwnedArray<DemoTexture> textures;
 
@@ -598,11 +579,8 @@ struct OpenGLDemoClasses
     {
     public:
         OpenGLDemo()
-            : doBackgroundDrawing (false),
-              scale (0.5f), rotationSpeed (0.0f), rotation (0.0f),
-              textureToUse (nullptr), lastTexture (nullptr)
         {
-            if (MainAppWindow* mw = MainAppWindow::getMainAppWindow())
+            if (auto* mw = MainAppWindow::getMainAppWindow())
                 mw->setRenderingEngine (0);
 
             setOpaque (true);
@@ -642,10 +620,10 @@ struct OpenGLDemoClasses
 
         void freeAllContextObjects()
         {
-            shape = nullptr;
-            shader = nullptr;
-            attributes = nullptr;
-            uniforms = nullptr;
+            shape.reset();
+            shader.reset();
+            attributes.reset();
+            uniforms.reset();
             texture.release();
         }
 
@@ -655,7 +633,7 @@ struct OpenGLDemoClasses
         {
             jassert (OpenGLHelpers::isContextActive());
 
-            const float desktopScale = (float) openGLContext.getRenderingScale();
+            auto desktopScale = (float) openGLContext.getRenderingScale();
 
             OpenGLHelpers::clear (getUIColourIfAvailable (LookAndFeel_V4::ColourScheme::UIColour::windowBackground,
                                                           Colours::lightblue));
@@ -718,17 +696,18 @@ struct OpenGLDemoClasses
 
         Matrix3D<float> getProjectionMatrix() const
         {
-            float w = 1.0f / (scale + 0.1f);
-            float h = w * getLocalBounds().toFloat().getAspectRatio (false);
+            auto w = 1.0f / (scale + 0.1f);
+            auto h = w * getLocalBounds().toFloat().getAspectRatio (false);
+
             return Matrix3D<float>::fromFrustum (-w, w, -h, h, 4.0f, 30.0f);
         }
 
         Matrix3D<float> getViewMatrix() const
         {
-            Matrix3D<float> viewMatrix = draggableOrientation.getRotationMatrix()
-                                            * Vector3D<float> (0.0f, 1.0f, -10.0f);
+            auto viewMatrix = draggableOrientation.getRotationMatrix()
+                                 * Vector3D<float> (0.0f, 1.0f, -10.0f);
 
-            Matrix3D<float> rotationMatrix = viewMatrix.rotated (Vector3D<float> (rotation, rotation, -0.3f));
+            auto rotationMatrix = Matrix3D<float>::rotation ({ rotation, rotation, -0.3f });
 
             return rotationMatrix * viewMatrix;
         }
@@ -753,8 +732,8 @@ struct OpenGLDemoClasses
         }
 
         Draggable3DOrientation draggableOrientation;
-        bool doBackgroundDrawing;
-        float scale, rotationSpeed;
+        bool doBackgroundDrawing = false;
+        float scale = 0.5f, rotationSpeed = 0;
         BouncingNumber bouncingNumber;
 
     private:
@@ -802,7 +781,7 @@ struct OpenGLDemoClasses
 
         ScopedPointer<DemoControlsOverlay> controlsOverlay;
 
-        float rotation;
+        float rotation = 0;
 
         ScopedPointer<OpenGLShaderProgram> shader;
         ScopedPointer<Shape> shape;
@@ -810,7 +789,8 @@ struct OpenGLDemoClasses
         ScopedPointer<Uniforms> uniforms;
 
         OpenGLTexture texture;
-        DemoTexture* textureToUse, *lastTexture;
+        DemoTexture* textureToUse = nullptr;
+        DemoTexture* lastTexture = nullptr;
 
         String newVertexShader, newFragmentShader, statusText;
 
@@ -832,9 +812,9 @@ struct OpenGLDemoClasses
                       && newShader->addFragmentShader (OpenGLHelpers::translateFragmentShaderToV3 (newFragmentShader))
                       && newShader->link())
                 {
-                    shape = nullptr;
-                    attributes = nullptr;
-                    uniforms = nullptr;
+                    shape.reset();
+                    attributes.reset();
+                    uniforms.reset();
 
                     shader = newShader;
                     shader->use();
@@ -852,8 +832,8 @@ struct OpenGLDemoClasses
 
                 triggerAsyncUpdate();
 
-                newVertexShader = String();
-                newFragmentShader = String();
+                newVertexShader = {};
+                newFragmentShader = {};
             }
         }
 

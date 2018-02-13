@@ -50,7 +50,7 @@ public:
     bool canOpenFile (const File& file) const;
     bool openFile (const File& file);
     void setProject (Project* newProject);
-    Project* getProject() const                 { return currentProject; }
+    Project* getProject() const                 { return currentProject.get(); }
 
     void makeVisible();
     void restoreWindowPosition();
@@ -96,9 +96,11 @@ public:
     bool askAllWindowsToClose();
     void closeWindow (MainWindow*);
 
+    void goToSiblingWindow (MainWindow*, int delta);
+
     void createWindowIfNoneAreOpen();
     void openDocument (OpenDocumentManager::Document*, bool grabFocus);
-    bool openFile (const File& file);
+    bool openFile (const File& file, bool openInBackground = false);
 
     MainWindow* createNewMainWindow();
     MainWindow* getFrontmostWindow (bool createIfNotFound = true);
