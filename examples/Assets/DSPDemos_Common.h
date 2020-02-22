@@ -104,7 +104,7 @@ public:
         thumbnail.addChangeListener (this);
     }
 
-    ~AudioThumbnailComponent()
+    ~AudioThumbnailComponent() override
     {
         thumbnail.removeChangeListener (this);
     }
@@ -367,7 +367,7 @@ public:
         setSize (800, 250);
     }
 
-    ~AudioFileReaderComponent()
+    ~AudioFileReaderComponent() override
     {
         signalThreadShouldExit();
         stop();
@@ -551,7 +551,7 @@ private:
             loopButton.getToggleStateValue().referTo (audioFileReader.loopState);
         }
 
-        ~AudioPlayerHeader()
+        ~AudioPlayerHeader() override
         {
             audioFileReader.playState.removeListener (this);
         }
@@ -602,7 +602,7 @@ private:
                     return;
                 }
 
-                fileChooser = new FileChooser ("Select an audio file...", File(), "*.wav;*.mp3;*.aif");
+                fileChooser.reset (new FileChooser ("Select an audio file...", File(), "*.wav;*.mp3;*.aif"));
 
                 fileChooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
                                           [safeThis] (const FileChooser& fc) mutable
@@ -639,7 +639,7 @@ private:
         ToggleButton loopButton { "Loop File" };
 
         AudioFileReaderComponent& audioFileReader;
-        ScopedPointer<FileChooser> fileChooser;
+        std::unique_ptr<FileChooser> fileChooser;
     };
 
     //==============================================================================
@@ -671,10 +671,10 @@ private:
     uint32 currentBlockSize = 512;
     uint32 currentNumChannels = 2;
 
-    ScopedPointer<AudioFormatReader> reader;
-    ScopedPointer<AudioFormatReaderSource> readerSource;
-    ScopedPointer<AudioTransportSource> transportSource;
-    ScopedPointer<DSPDemo<DemoType>> currentDemo;
+    std::unique_ptr<AudioFormatReader> reader;
+    std::unique_ptr<AudioFormatReaderSource> readerSource;
+    std::unique_ptr<AudioTransportSource> transportSource;
+    std::unique_ptr<DSPDemo<DemoType>> currentDemo;
 
     AudioSourcePlayer audioSourcePlayer;
 
@@ -682,5 +682,5 @@ private:
 
     AudioBuffer<float> fileReadBuffer;
 
-    ScopedPointer<DemoParametersComponent> parametersComponent;
+    std::unique_ptr<DemoParametersComponent> parametersComponent;
 };

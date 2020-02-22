@@ -24,6 +24,7 @@
   ==============================================================================
 */
 
+
 /*******************************************************************************
  The block below describes the properties of this module, and is read by
  the Projucer to automatically generate project code that uses it.
@@ -33,15 +34,15 @@
 
  BEGIN_JUCE_MODULE_DECLARATION
 
-  ID:               juce_box2d
-  vendor:           juce
-  version:          5.3.1
-  name:             JUCE wrapper for the Box2D physics engine
-  description:      The Box2D physics engine and some utility classes.
-  website:          http://www.juce.com/juce
-  license:          GPL/Commercial
+  ID:                 juce_box2d
+  vendor:             juce
+  version:            5.4.7
+  name:               JUCE wrapper for the Box2D physics engine
+  description:        The Box2D physics engine and some utility classes.
+  website:            http://www.juce.com/juce
+  license:            GPL/Commercial
 
-  dependencies:     juce_graphics
+  dependencies:       juce_graphics
 
  END_JUCE_MODULE_DECLARATION
 
@@ -54,14 +55,33 @@
 //==============================================================================
 #include <juce_graphics/juce_graphics.h>
 
-#ifdef __GNUC__
- #pragma GCC diagnostic push
- #pragma GCC diagnostic ignored "-Wconversion"
+#ifdef JUCE_CLANG
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wconversion"
+ #if __has_warning("-Wshadow-field")
+  #pragma clang diagnostic ignored "-Wshadow-field"
+ #endif
+ #if __has_warning("-Wzero-as-null-pointer-constant")
+  #pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+ #endif
 #endif
+
+#ifdef JUCE_GCC
+ #pragma GCC diagnostic ignored "-Wconversion"
+ #pragma GCC diagnostic ignored "-Wsign-conversion"
+ #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+
+#include <climits>
+#include <cfloat>
 
 #include "box2d/Box2D.h"
 
-#ifdef __GNUC__
+#ifdef JUCE_CLANG
+ #pragma clang diagnostic pop
+#endif
+
+#ifdef JUCE_GCC
  #pragma GCC diagnostic pop
 #endif
 

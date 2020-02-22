@@ -64,9 +64,9 @@ void ThreadedAnalyticsDestination::stopAnalyticsThread (int timeout)
         saveUnloggedEvents (dispatcher.eventQueue);
 }
 
-ThreadedAnalyticsDestination::EventDispatcher::EventDispatcher (const String& threadName,
+ThreadedAnalyticsDestination::EventDispatcher::EventDispatcher (const String& dispatcherThreadName,
                                                                 ThreadedAnalyticsDestination& destination)
-    : Thread (threadName),
+    : Thread (dispatcherThreadName),
       parent (destination)
 {}
 
@@ -89,20 +89,24 @@ void ThreadedAnalyticsDestination::EventDispatcher::run()
 
     while (! threadShouldExit())
     {
-        auto eventsToSendCapacity = maxBatchSize - eventsToSend.size();
-
-        if (eventsToSendCapacity > 0)
         {
-            const ScopedLock lock (queueAccess);
+            const auto numEventsInBatch = eventsToSend.size();
+            const auto freeBatchCapacity = maxBatchSize - numEventsInBatch;
 
-            const auto numEventsInQueue = (int) eventQueue.size();
-
-            if (numEventsInQueue > 0)
+            if (freeBatchCapacity > 0)
             {
-                const auto numEventsToAdd = jmin (eventsToSendCapacity, numEventsInQueue);
+                const auto numNewEvents = (int) eventQueue.size() - numEventsInBatch;
 
-                for (size_t i = 0; i < (size_t) numEventsToAdd; ++i)
-                    eventsToSend.add (eventQueue[i]);
+                if (numNewEvents > 0)
+                {
+                    const ScopedLock lock (queueAccess);
+
+                    const auto numEventsToAdd = jmin (numNewEvents, freeBatchCapacity);
+                    const auto newBatchSize = numEventsInBatch + numEventsToAdd;
+
+                    for (auto i = numEventsInBatch; i < newBatchSize; ++i)
+                        eventsToSend.add (eventQueue[(size_t) i]);
+                }
             }
         }
 
@@ -137,6 +141,8 @@ void ThreadedAnalyticsDestination::EventDispatcher::addToQueue (const AnalyticsE
     eventQueue.push_back (event);
 }
 
+
+//==============================================================================
 //==============================================================================
 #if JUCE_UNIT_TESTS
 
@@ -154,7 +160,7 @@ namespace DestinationTestHelpers
             startAnalyticsThread (20);
         }
 
-        ~BasicDestination()
+        ~BasicDestination() override
         {
             stopAnalyticsThread (1000);
         }
@@ -209,7 +215,7 @@ namespace DestinationTestHelpers
 struct ThreadedAnalyticsDestinationTests   : public UnitTest
 {
     ThreadedAnalyticsDestinationTests()
-        : UnitTest ("ThreadedAnalyticsDestination")
+        : UnitTest ("ThreadedAnalyticsDestination", UnitTestCategories::analytics)
     {}
 
     void compareEventQueues (const std::deque<AnalyticsDestination::AnalyticsEvent>& a,

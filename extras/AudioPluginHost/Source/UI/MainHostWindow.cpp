@@ -24,9 +24,9 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "MainHostWindow.h"
-#include "../Filters/InternalFilters.h"
+#include "../Plugins/InternalPlugins.h"
 
 
 //==============================================================================
@@ -55,7 +55,7 @@ public:
         setVisible (true);
     }
 
-    ~PluginListWindow()
+    ~PluginListWindow() override
     {
         getAppProperties().getUserSettings()->setValue ("listWindowPos", getWindowStateAsString());
         clearContentComponent();
@@ -81,13 +81,12 @@ MainHostWindow::MainHostWindow()
     formatManager.addDefaultFormats();
     formatManager.addFormat (new InternalPluginFormat());
 
+    auto safeThis = SafePointer<MainHostWindow> (this);
     RuntimePermissions::request (RuntimePermissions::recordAudio,
-                                 [safeThis = SafePointer<MainHostWindow> (this)] (bool granted) mutable
+                                 [safeThis] (bool granted) mutable
                                  {
-                                     ScopedPointer<XmlElement> savedAudioState (getAppProperties().getUserSettings()
-                                                                                ->getXmlValue ("audioDeviceState"));
-
-                                     safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedAudioState, true);
+                                     auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
+                                     safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), true);
                                  });
 
    #if JUCE_IOS || JUCE_ANDROID
@@ -98,9 +97,9 @@ MainHostWindow::MainHostWindow()
     centreWithSize (800, 600);
    #endif
 
-    graphHolder = new GraphDocumentComponent (formatManager, deviceManager, knownPluginList);
+    graphHolder.reset (new GraphDocumentComponent (formatManager, deviceManager, knownPluginList));
 
-    setContentNonOwned (graphHolder, false);
+    setContentNonOwned (graphHolder.get(), false);
 
     restoreWindowStateFromString (getAppProperties().getUserSettings()->getValue ("mainWindowPos"));
 
@@ -109,21 +108,19 @@ MainHostWindow::MainHostWindow()
     InternalPluginFormat internalFormat;
     internalFormat.getAllTypes (internalTypes);
 
-    ScopedPointer<XmlElement> savedPluginList (getAppProperties().getUserSettings()->getXmlValue ("pluginList"));
-
-    if (savedPluginList != nullptr)
+    if (auto savedPluginList = getAppProperties().getUserSettings()->getXmlValue ("pluginList"))
         knownPluginList.recreateFromXml (*savedPluginList);
 
-    for (auto* t : internalTypes)
-        knownPluginList.addType (*t);
+    for (auto& t : internalTypes)
+        knownPluginList.addType (t);
 
     pluginSortMethod = (KnownPluginList::SortMethod) getAppProperties().getUserSettings()
                             ->getIntValue ("pluginSortMethod", KnownPluginList::sortByManufacturer);
 
     knownPluginList.addChangeListener (this);
 
-    if (auto* filterGraph = graphHolder->graph.get())
-        filterGraph->addChangeListener (this);
+    if (auto* g = graphHolder->graph.get())
+        g->addChangeListener (this);
 
     addKeyListener (getCommandManager().getKeyMappings());
 
@@ -147,8 +144,8 @@ MainHostWindow::~MainHostWindow()
     pluginListWindow = nullptr;
     knownPluginList.removeChangeListener (this);
 
-    if (auto* filterGraph = graphHolder->graph.get())
-        filterGraph->removeChangeListener (this);
+    if (auto* g = graphHolder->graph.get())
+        g->removeChangeListener (this);
 
     getAppProperties().getUserSettings()->setValue ("mainWindowPos", getWindowStateAsString());
     clearContentComponent();
@@ -199,7 +196,7 @@ void MainHostWindow::tryToQuitApplication()
         new AsyncQuitRetrier();
     }
    #if JUCE_ANDROID || JUCE_IOS
-    else if (graphHolder == nullptr || graphHolder->graph->saveDocument (FilterGraph::getDefaultGraphDocumentOnMobile()))
+    else if (graphHolder == nullptr || graphHolder->graph->saveDocument (PluginGraph::getDefaultGraphDocumentOnMobile()))
    #else
     else if (graphHolder == nullptr || graphHolder->graph->saveIfNeededAndUserAgrees() == FileBasedDocument::savedOk)
    #endif
@@ -220,15 +217,13 @@ void MainHostWindow::changeListenerCallback (ChangeBroadcaster* changed)
 
         // save the plugin list every time it gets changed, so that if we're scanning
         // and it crashes, we've still saved the previous ones
-        ScopedPointer<XmlElement> savedPluginList (knownPluginList.createXml());
-
-        if (savedPluginList != nullptr)
+        if (auto savedPluginList = std::unique_ptr<XmlElement> (knownPluginList.createXml()))
         {
-            getAppProperties().getUserSettings()->setValue ("pluginList", savedPluginList);
+            getAppProperties().getUserSettings()->setValue ("pluginList", savedPluginList.get());
             getAppProperties().saveIfNeeded();
         }
     }
-    else if (graphHolder != nullptr && changed == graphHolder->graph)
+    else if (graphHolder != nullptr && changed == graphHolder->graph.get())
     {
         auto title = JUCEApplication::getInstance()->getApplicationName();
         auto f = graphHolder->graph->getFile();
@@ -351,10 +346,9 @@ void MainHostWindow::menuItemSelected (int menuItemID, int /*topLevelMenuIndex*/
     }
     else
     {
-        if (auto* desc = getChosenType (menuItemID))
-            createPlugin (*desc,
-                          { proportionOfWidth  (0.3f + Random::getSystemRandom().nextFloat() * 0.6f),
-                            proportionOfHeight (0.3f + Random::getSystemRandom().nextFloat() * 0.6f) });
+        if (KnownPluginList::getIndexChosenByMenu (pluginDescriptions, menuItemID) >= 0)
+            createPlugin (getChosenType (menuItemID), { proportionOfWidth  (0.3f + Random::getSystemRandom().nextFloat() * 0.6f),
+                                                        proportionOfHeight (0.3f + Random::getSystemRandom().nextFloat() * 0.6f) });
     }
 }
 
@@ -370,28 +364,29 @@ void MainHostWindow::createPlugin (const PluginDescription& desc, Point<int> pos
         graphHolder->createNewPlugin (desc, pos);
 }
 
-void MainHostWindow::addPluginsToMenu (PopupMenu& m) const
+void MainHostWindow::addPluginsToMenu (PopupMenu& m)
 {
     if (graphHolder != nullptr)
     {
         int i = 0;
 
-        for (auto* t : internalTypes)
-            m.addItem (++i, t->name + " (" + t->pluginFormatName + ")",
-                       graphHolder->graph->getNodeForName (t->name) == nullptr);
+        for (auto& t : internalTypes)
+            m.addItem (++i, t.name + " (" + t.pluginFormatName + ")",
+                       graphHolder->graph->getNodeForName (t.name) == nullptr);
     }
 
     m.addSeparator();
 
-    knownPluginList.addToMenu (m, pluginSortMethod);
+    pluginDescriptions = knownPluginList.getTypes();
+    KnownPluginList::addToMenu (m, pluginDescriptions, pluginSortMethod);
 }
 
-const PluginDescription* MainHostWindow::getChosenType (const int menuID) const
+PluginDescription MainHostWindow::getChosenType (const int menuID) const
 {
     if (menuID >= 1 && menuID < 1 + internalTypes.size())
         return internalTypes [menuID - 1];
 
-    return knownPluginList.getType (knownPluginList.getIndexChosenByMenu (menuID));
+    return pluginDescriptions[KnownPluginList::getIndexChosenByMenu (pluginDescriptions, menuID)];
 }
 
 //==============================================================================
@@ -506,7 +501,7 @@ bool MainHostWindow::perform (const InvocationInfo& info)
 
     case CommandIDs::showPluginListEditor:
         if (pluginListWindow == nullptr)
-            pluginListWindow = new PluginListWindow (*this, formatManager);
+            pluginListWindow.reset (new PluginListWindow (*this, formatManager));
 
         pluginListWindow->toFront (true);
         break;
@@ -573,13 +568,15 @@ void MainHostWindow::showAudioSettings()
     o.resizable                     = false;
 
      auto* w = o.create();
+     auto safeThis = SafePointer<MainHostWindow> (this);
+
      w->enterModalState (true,
                          ModalCallbackFunction::create
-                         ([safeThis = SafePointer<MainHostWindow> (this)] (int)
+                         ([safeThis] (int)
                          {
-                             ScopedPointer<XmlElement> audioState (safeThis->deviceManager.createStateXml());
+                             auto audioState = safeThis->deviceManager.createStateXml();
 
-                             getAppProperties().getUserSettings()->setValue ("audioDeviceState", audioState);
+                             getAppProperties().getUserSettings()->setValue ("audioDeviceState", audioState.get());
                              getAppProperties().getUserSettings()->saveIfNeeded();
 
                              if (safeThis->graphHolder != nullptr)
@@ -610,11 +607,11 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
     if (graphHolder != nullptr)
     {
        #if ! (JUCE_ANDROID || JUCE_IOS)
-        if (files.size() == 1 && File (files[0]).hasFileExtension (FilterGraph::getFilenameSuffix()))
+        if (files.size() == 1 && File (files[0]).hasFileExtension (PluginGraph::getFilenameSuffix()))
         {
-            if (auto* filterGraph = graphHolder->graph.get())
-                if (filterGraph->saveIfNeededAndUserAgrees() == FileBasedDocument::savedOk)
-                    filterGraph->loadFrom (File (files[0]), true);
+            if (auto* g = graphHolder->graph.get())
+                if (g->saveIfNeededAndUserAgrees() == FileBasedDocument::savedOk)
+                    g->loadFrom (File (files[0]), true);
         }
         else
        #endif

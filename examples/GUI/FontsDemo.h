@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        FontsDemo
@@ -106,7 +108,7 @@ public:
         verticalDividerBar.reset (new StretchableLayoutResizerBar (&verticalLayout, 1, true));
         addAndMakeVisible (verticalDividerBar.get());
 
-        // ..and pick a random font to select intially
+        // ..and pick a random font to select initially
         listBox.selectRow (Random::getSystemRandom().nextInt (fonts.size()));
 
         demoTextBox.setMultiLine (true);
@@ -149,10 +151,12 @@ public:
 
         r.removeFromLeft (verticalDividerBar->getRight());
 
-        styleBox.setBounds (r.removeFromBottom (26));
-        r.removeFromBottom (8);
-
         int labelWidth = 60;
+
+        auto styleArea = r.removeFromBottom (26);
+        styleArea.removeFromLeft (labelWidth);
+        styleBox.setBounds (styleArea);
+        r.removeFromBottom (8);
 
         auto row = r.removeFromBottom (30);
         row.removeFromLeft (labelWidth);
@@ -213,8 +217,8 @@ private:
 
     Label heightLabel   { {}, "Height:" },
           kerningLabel  { {}, "Kerning:" },
-          scaleLabel    { "Scale:" },
-          styleLabel    { "Style" };
+          scaleLabel    { {}, "Scale:" },
+          styleLabel    { {}, "Style:" };
 
     ToggleButton boldToggle   { "Bold" },
                  italicToggle { "Italic" };
@@ -223,7 +227,7 @@ private:
     ComboBox styleBox;
 
     StretchableLayoutManager verticalLayout;
-    ScopedPointer<StretchableLayoutResizerBar> verticalDividerBar;
+    std::unique_ptr<StretchableLayoutResizerBar> verticalDividerBar;
 
     //==============================================================================
     void refreshPreviewBoxFont()

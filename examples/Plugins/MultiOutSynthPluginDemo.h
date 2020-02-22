@@ -33,7 +33,9 @@
                    juce_audio_plugin_client, juce_audio_processors,
                    juce_audio_utils, juce_core, juce_data_structures,
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017
+ exporters:        xcode_mac, vs2019
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             AudioProcessor
  mainClass:        MultiOutSynth
@@ -123,7 +125,7 @@ public:
     }
 
     //==============================================================================
-    AudioProcessorEditor* createEditor() override          { return new GenericAudioProcessorEditor (this); }
+    AudioProcessorEditor* createEditor() override          { return new GenericAudioProcessorEditor (*this); }
     bool hasEditor() const override                        { return true; }
 
     //==============================================================================
@@ -157,7 +159,7 @@ private:
 
     void loadNewSample (InputStream* soundBuffer, const char* format)
     {
-        ScopedPointer<AudioFormatReader> formatReader (formatManager.findFormatForFileExtension (format)->createReaderFor (soundBuffer, true));
+        std::unique_ptr<AudioFormatReader> formatReader (formatManager.findFormatForFileExtension (format)->createReaderFor (soundBuffer, true));
 
         BigInteger midiNotes;
         midiNotes.setRange (0, 126, true);

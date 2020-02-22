@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        CodeEditorDemo
@@ -45,6 +47,10 @@
 #pragma once
 
 #include "../Assets/DemoUtilities.h"
+
+#if JUCE_ANDROID
+ #error "This demo is not supported on Android!"
+#endif
 
 //==============================================================================
 class CodeEditorDemo  : public Component,
@@ -77,7 +83,7 @@ public:
         setSize (500, 500);
     }
 
-    ~CodeEditorDemo()
+    ~CodeEditorDemo() override
     {
         fileChooser.removeListener (this);
     }
@@ -104,7 +110,7 @@ private:
     CPlusPlusCodeTokeniser cppTokeniser;
 
     // the editor component
-    ScopedPointer<CodeEditorComponent> editor;
+    std::unique_ptr<CodeEditorComponent> editor;
 
     FilenameComponent fileChooser { "File", {}, true, false, false, "*.cpp;*.h;*.hpp;*.c;*.mm;*.m", {},
                                     "Choose a C++ file to open it in the editor" };

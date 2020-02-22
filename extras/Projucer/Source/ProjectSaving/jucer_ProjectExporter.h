@@ -27,17 +27,16 @@
 #pragma once
 
 #include "../Project/jucer_Project.h"
-#include "../Utility/UI/PropertyComponents/jucer_DependencyPathPropertyComponent.h"
 #include "../Utility/UI/PropertyComponents/jucer_PropertyComponentsWithEnablement.h"
 
 class ProjectSaver;
 
 //==============================================================================
-class ProjectExporter
+class ProjectExporter  : private Value::Listener
 {
 public:
     ProjectExporter (Project&, const ValueTree& settings);
-    virtual ~ProjectExporter();
+    virtual ~ProjectExporter() override;
 
     struct ExporterTypeInfo
     {
@@ -50,7 +49,7 @@ public:
             Image image (Image::ARGB, 200, 200, true);
             Graphics g (image);
 
-            ScopedPointer<Drawable> svgDrawable (Drawable::createFromImageData (iconData, (size_t) iconDataSize));
+            std::unique_ptr<Drawable> svgDrawable (Drawable::createFromImageData (iconData, (size_t) iconDataSize));
 
             svgDrawable->drawWithin (g, image.getBounds().toFloat(), RectanglePlacement::fillDestination, 1.0f);
 
@@ -79,7 +78,7 @@ public:
     virtual bool canLaunchProject() = 0;
     virtual bool launchProject() = 0;
     virtual void create (const OwnedArray<LibraryModule>&) const = 0; // may throw a SaveError
-    virtual bool shouldFileBeCompiledByDefault (const RelativePath& path) const;
+    virtual bool shouldFileBeCompiledByDefault (const File& path) const;
     virtual bool canCopeWithDuplicateFiles() = 0;
     virtual bool supportsUserDefinedConfigurations() const = 0; // false if exporter only supports two configs Debug and Release
     virtual void updateDeprecatedProjectSettingsInteractively();
@@ -152,15 +151,16 @@ public:
 
     String getExternalLibrariesString() const             { return getSearchPathsFromString (externalLibrariesValue.get().toString()).joinIntoString (";"); }
 
-    bool shouldUseGNUExtensions() const                   { return gnuExtensionsValue.get();}
+    bool shouldUseGNUExtensions() const                   { return gnuExtensionsValue.get(); }
 
-    Value getVST3PathValue() const                        { return vst3Path; }
-    Value getRTASPathValue() const                        { return rtasPath; }
-    Value getAAXPathValue() const                         { return aaxPath; }
+    String getVSTLegacyPathString() const                 { return vstLegacyPathValueWrapper.wrappedValue.get(); }
+    String getVST3PathString() const                      { return vst3PathValueWrapper.wrappedValue.get(); }
+    String getAAXPathString() const                       { return aaxPathValueWrapper.wrappedValue.get(); }
+    String getRTASPathString() const                      { return rtasPathValueWrapper.wrappedValue.get(); }
 
     // NB: this is the path to the parent "modules" folder that contains the named module, not the
     // module folder itself.
-    Value getPathForModuleValue (const String& moduleID);
+    ValueWithDefault getPathForModuleValue (const String& moduleID);
     String getPathForModuleString (const String& moduleID) const;
     void removePathForModule (const String& moduleID);
 
@@ -179,8 +179,8 @@ public:
 
     void addProjectPathToBuildPathList (StringArray&, const RelativePath&, int index = -1) const;
 
-    Drawable* getBigIcon() const;
-    Drawable* getSmallIcon() const;
+    std::unique_ptr<Drawable> getBigIcon() const;
+    std::unique_ptr<Drawable> getSmallIcon() const;
     Image getBestIconForSize (int size, bool returnNullIfNothingBigEnough) const;
 
     String getExporterIdentifierMacro() const
@@ -234,7 +234,7 @@ public:
         BuildConfiguration (Project& project, const ValueTree& configNode, const ProjectExporter&);
         ~BuildConfiguration();
 
-        typedef ReferenceCountedObjectPtr<BuildConfiguration> Ptr;
+        using Ptr = ReferenceCountedObjectPtr<BuildConfiguration>;
 
         //==============================================================================
         virtual void createConfigProperties (PropertyListBuilder&) = 0;
@@ -244,8 +244,12 @@ public:
         String getName() const                                 { return configNameValue.get(); }
         bool isDebug() const                                   { return isDebugValue.get(); }
 
-        String getTargetBinaryNameString() const               { return targetNameValue.get(); }
         String getTargetBinaryRelativePathString() const       { return targetBinaryPathValue.get(); }
+        String getTargetBinaryNameString (bool isUnityPlugin = false) const
+        {
+            return (isUnityPlugin ? Project::addUnityPluginPrefixIfNecessary (targetNameValue.get().toString())
+                                  : targetNameValue.get().toString());
+        }
 
         int getOptimisationLevelInt() const                    { return optimisationLevelValue.get(); }
         String getGCCOptimisationFlag() const;
@@ -268,6 +272,9 @@ public:
 
         //==============================================================================
         void createPropertyEditors (PropertyListBuilder&);
+        void addRecommendedLinuxCompilerWarningsProperty (PropertyListBuilder&);
+        void addRecommendedLLVMCompilerWarningsProperty (PropertyListBuilder&);
+        StringArray getRecommendedCompilerWarningFlags() const;
         void addGCCOptimisationProperty (PropertyListBuilder&);
         void removeFromExporter();
 
@@ -277,10 +284,12 @@ public:
         const ProjectExporter& exporter;
 
     protected:
-        ValueWithDefault isDebugValue, configNameValue, targetNameValue, targetBinaryPathValue, optimisationLevelValue,
+        ValueWithDefault isDebugValue, configNameValue, targetNameValue, targetBinaryPathValue, recommendedWarningsValue, optimisationLevelValue,
                          linkTimeOptimisationValue, ppDefinesValue, headerSearchPathValue, librarySearchPathValue, userNotesValue;
 
     private:
+        std::map<String, StringArray> recommendedCompilerWarningFlags;
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BuildConfiguration)
     };
 
@@ -299,7 +308,7 @@ public:
         bool next();
 
         BuildConfiguration& operator*() const       { return *config; }
-        BuildConfiguration* operator->() const      { return config; }
+        BuildConfiguration* operator->() const      { return config.get(); }
 
         BuildConfiguration::Ptr config;
         int index;
@@ -316,7 +325,7 @@ public:
         bool next();
 
         const BuildConfiguration& operator*() const       { return *config; }
-        const BuildConfiguration* operator->() const      { return config; }
+        const BuildConfiguration* operator->() const      { return config.get(); }
 
         BuildConfiguration::Ptr config;
         int index;
@@ -365,13 +374,47 @@ protected:
     const ProjectType& projectType;
     const String projectName;
     const File projectFolder;
-    Value vst3Path, rtasPath, aaxPath; // these must be initialised in the specific exporter c'tors!
+
+    //==============================================================================
+    // Wraps a ValueWithDefault object that has a default which depends on a global value.
+    // Used for the VST3, RTAS and AAX project-specific path options.
+    struct ValueWithDefaultWrapper  : public Value::Listener
+    {
+        void init (const ValueWithDefault& vwd, ValueWithDefault global, TargetOS::OS targetOS)
+        {
+            wrappedValue = vwd;
+            globalValue = global.getPropertyAsValue();
+            globalIdentifier = global.getPropertyID();
+            os = targetOS;
+
+            if (wrappedValue.get() == var())
+                wrappedValue.resetToDefault();
+
+            globalValue.addListener (this);
+            valueChanged (globalValue);
+        }
+
+        void valueChanged (Value&) override
+        {
+            wrappedValue.setDefault (getAppSettings().getStoredPath (globalIdentifier, os).get());
+        }
+
+        ValueWithDefault wrappedValue;
+        Value globalValue;
+
+        Identifier globalIdentifier;
+        TargetOS::OS os;
+    };
+
+    ValueWithDefaultWrapper vstLegacyPathValueWrapper, vst3PathValueWrapper, rtasPathValueWrapper, aaxPathValueWrapper;
 
     ValueWithDefault targetLocationValue, extraCompilerFlagsValue, extraLinkerFlagsValue, externalLibrariesValue,
                      userNotesValue, gnuExtensionsValue, bigIconValue, smallIconValue, extraPPDefsValue;
 
+    Value projectCompilerFlagSchemesValue;
+    HashMap<String, ValueWithDefault> compilerFlagSchemesMap;
+
     mutable Array<Project::Item> itemGroups;
-    void initItemGroups() const;
     Project::Item* modulesGroup = nullptr;
 
     virtual BuildConfiguration::Ptr createBuildConfig (const ValueTree&) const = 0;
@@ -404,26 +447,26 @@ protected:
             throw SaveError ("Can't create folder: " + dirToCreate.getFullPathName());
     }
 
-    static void writeXmlOrThrow (const XmlElement& xml, const File& file, const String& encoding, int maxCharsPerLine, bool useUnixNewLines = false)
+    static void writeXmlOrThrow (const XmlElement& xml, const File& file, const String& encoding,
+                                 int maxCharsPerLine, bool useUnixNewLines = false)
     {
-        MemoryOutputStream mo;
-        xml.writeToStream (mo, String(), false, true, encoding, maxCharsPerLine);
+        XmlElement::TextFormat format;
+        format.customEncoding = encoding;
+        format.lineWrapLength = maxCharsPerLine;
+        format.newLineChars = useUnixNewLines ? "\n" : "\r\n";
 
-        if (useUnixNewLines)
-        {
-            MemoryOutputStream mo2;
-            mo2 << mo.toString().replace ("\r\n", "\n");
-            overwriteFileIfDifferentOrThrow (file, mo2);
-        }
-        else
-        {
-            overwriteFileIfDifferentOrThrow (file, mo);
-        }
+        MemoryOutputStream mo (8192);
+        xml.writeTo (mo, format);
+        overwriteFileIfDifferentOrThrow (file, mo);
     }
 
     static Image rescaleImageForIcon (Drawable&, int iconSize);
 
 private:
+    //==============================================================================
+    void valueChanged (Value&) override   { updateCompilerFlagValues(); }
+    void updateCompilerFlagValues();
+
     //==============================================================================
     static String addLibPrefix (const String name)
     {
@@ -441,6 +484,8 @@ private:
     void createIconProperties (PropertyListBuilder&);
     void addVSTPathsIfPluginOrHost();
     void addCommonAudioPluginSettings();
+    void addLegacyVSTFolderToPathIfSpecified();
+    RelativePath getInternalVST3SDKPath();
     void addVST3FolderToPath();
     void addAAXFoldersToPath();
 

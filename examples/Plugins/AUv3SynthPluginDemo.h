@@ -35,6 +35,8 @@
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
  exporters:        xcode_mac, xcode_iphone
 
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
+
  type:             AudioProcessor
  mainClass:        AUv3SynthProcessor
 
@@ -189,13 +191,13 @@ public:
         recordButton.onClick = [this] { startRecording(); };
         addAndMakeVisible (recordButton);
 
-        roomSizeSlider.onValueChange = [this] { setParameterValue ("roomSize", roomSizeSlider.getValue()); };
+        roomSizeSlider.onValueChange = [this] { setParameterValue ("roomSize", (float) roomSizeSlider.getValue()); };
         roomSizeSlider.setRange (0.0, 1.0);
         addAndMakeVisible (roomSizeSlider);
 
         if (auto* assetStream = createAssetInputStream ("proaudio.path"))
         {
-            ScopedPointer<InputStream> fileStream (assetStream);
+            std::unique_ptr<InputStream> fileStream (assetStream);
 
             Path proAudioPath;
             proAudioPath.loadPathFromStream (*fileStream);
@@ -258,7 +260,7 @@ private:
     {
         if (auto* processor = getAudioProcessor())
         {
-            const OwnedArray<AudioProcessorParameter>& params = processor->getParameters();
+            auto& params = processor->getParameters();
 
             for (auto p : params)
             {
@@ -415,7 +417,7 @@ private:
 
     void loadNewSample (InputStream* soundBuffer, const char* format)
     {
-        ScopedPointer<AudioFormatReader> formatReader (formatManager.findFormatForFileExtension (format)->createReaderFor (soundBuffer, true));
+        std::unique_ptr<AudioFormatReader> formatReader (formatManager.findFormatForFileExtension (format)->createReaderFor (soundBuffer, true));
 
         BigInteger midiNotes;
         midiNotes.setRange (0, 126, true);
@@ -431,7 +433,7 @@ private:
         auto* stream = new MemoryOutputStream (mb, true);
 
         {
-            ScopedPointer<AudioFormatWriter> writer (formatManager.findFormatForFileExtension ("wav")->createWriterFor (stream, lastSampleRate, 1, 16,
+            std::unique_ptr<AudioFormatWriter> writer (formatManager.findFormatForFileExtension ("wav")->createWriterFor (stream, lastSampleRate, 1, 16,
                                                                                                                           StringPairArray(), 0));
             writer->writeFromAudioSampleBuffer (currentRecording, 0, currentRecording.getNumSamples());
             writer->flush();

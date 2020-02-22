@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        MDIDemo
@@ -49,7 +51,7 @@
 //==============================================================================
 /** The Note class contains text editor used to display and edit the note's contents and will
     also listen to changes in the text and mark the FileBasedDocument as 'dirty'. This 'dirty'
-    flag is used to promt the user to save the note when it is closed.
+    flag is used to prompt the user to save the note when it is closed.
  */
 class Note    : public Component,
                 public FileBasedDocument
@@ -91,12 +93,10 @@ public:
     Result saveDocument (const File& file) override
     {
         // attempt to save the contents into the given file
-        FileOutputStream os (file);
+        if (file.replaceWithText (editor.getText()))
+            return Result::ok();
 
-        if (os.openedOk())
-            os.writeText (editor.getText(), false, false);
-
-        return Result::ok();
+        return Result::fail ("Can't write to file");
     }
 
     File getLastDocumentOpened() override
@@ -113,7 +113,9 @@ public:
    #if JUCE_MODAL_LOOPS_PERMITTED
     File getSuggestedSaveAsFile (const File&) override
     {
-        return File::getSpecialLocation (File::userDesktopDirectory).getChildFile (getName()).withFileExtension ("jnote");
+        return File::getSpecialLocation (File::userDesktopDirectory)
+                    .getChildFile (getName())
+                    .withFileExtension ("jnote");
     }
    #endif
 
@@ -138,7 +140,7 @@ class DemoMultiDocumentPanel    : public MultiDocumentPanel
 public:
     DemoMultiDocumentPanel() {}
 
-    ~DemoMultiDocumentPanel()
+    ~DemoMultiDocumentPanel() override
     {
         closeAllDocuments (true);
     }

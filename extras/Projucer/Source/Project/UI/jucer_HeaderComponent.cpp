@@ -35,7 +35,7 @@
 #include "../../LiveBuildEngine/jucer_DiagnosticMessage.h"
 #include "../../LiveBuildEngine/jucer_CompileEngineClient.h"
 
-//======================================================================
+//==============================================================================
 HeaderComponent::HeaderComponent()
 {
     addAndMakeVisible (configLabel);
@@ -43,7 +43,8 @@ HeaderComponent::HeaderComponent()
 
     exporterBox.onChange = [this] { updateExporterButton(); };
 
-    addAndMakeVisible  (juceIcon = new ImageComponent ("icon"));
+    juceIcon.reset (new ImageComponent ("icon"));
+    addAndMakeVisible (juceIcon.get());
     juceIcon->setImage (ImageCache::getFromMemory (BinaryData::juce_icon_png, BinaryData::juce_icon_pngSize),
                         RectanglePlacement::centred);
 
@@ -65,13 +66,13 @@ HeaderComponent::~HeaderComponent()
     }
 }
 
-//======================================================================
+//==============================================================================
 void HeaderComponent::resized()
 {
     auto bounds = getLocalBounds();
     configLabel.setFont ({ bounds.getHeight() / 3.0f });
 
-    //======================================================================
+    //==============================================================================
     {
         auto headerBounds = bounds.removeFromLeft (tabsWidth);
 
@@ -86,7 +87,7 @@ void HeaderComponent::resized()
         projectNameLabel.setBounds (headerBounds);
     }
 
-    //======================================================================
+    //==============================================================================
     auto exporterWidth = jmin (400, bounds.getWidth() / 2);
     Rectangle<int> exporterBounds (0, 0, exporterWidth, bounds.getHeight());
 
@@ -113,7 +114,7 @@ void HeaderComponent::paint (Graphics& g)
                                                     runAppButton->getWidth(), runAppButton->getHeight());
 }
 
-//======================================================================
+//==============================================================================
 void HeaderComponent::setCurrentProject (Project* p) noexcept
 {
     project = p;
@@ -122,7 +123,8 @@ void HeaderComponent::setCurrentProject (Project* p) noexcept
     exportersTree.addListener (this);
     updateExporters();
 
-    project->addChangeListener (this);
+    projectNameValue.referTo (project->getProjectValue (Ids::name));
+    projectNameValue.addListener (this);
     updateName();
 
     isBuilding = false;
@@ -130,14 +132,12 @@ void HeaderComponent::setCurrentProject (Project* p) noexcept
     repaint();
 
     childProcess = ProjucerApplication::getApp().childProcessCache->getExisting (*project);
+
     if (childProcess != nullptr)
     {
         childProcess->activityList.addChangeListener (this);
         childProcess->errorList.addChangeListener (this);
-    }
 
-    if (childProcess != nullptr)
-    {
         runAppButton->setTooltip ({});
         runAppButton->setEnabled (true);
     }
@@ -148,7 +148,7 @@ void HeaderComponent::setCurrentProject (Project* p) noexcept
     }
 }
 
-//======================================================================
+//==============================================================================
 void HeaderComponent::updateExporters() noexcept
 {
     auto selectedName = getSelectedExporterName();
@@ -164,13 +164,27 @@ void HeaderComponent::updateExporters() noexcept
         if (selectedName == exporter->getName())
             exporterBox.setSelectedId (i + 1);
 
-        if (exporter->canLaunchProject() && preferredExporterIndex == -1)
+        if (exporter->getName().contains (ProjectExporter::getCurrentPlatformExporterName()) && preferredExporterIndex == -1)
             preferredExporterIndex = i;
     }
 
     if (exporterBox.getSelectedItemIndex() == -1)
-        exporterBox.setSelectedItemIndex (preferredExporterIndex != -1 ? preferredExporterIndex
-                                                                       : 0);
+    {
+        if (preferredExporterIndex == -1)
+        {
+            i = 0;
+            for (Project::ExporterIterator exporter (*project); exporter.next(); ++i)
+            {
+                if (exporter->canLaunchProject())
+                {
+                    preferredExporterIndex = i;
+                    break;
+                }
+            }
+        }
+
+        exporterBox.setSelectedItemIndex (preferredExporterIndex != -1 ? preferredExporterIndex : 0);
+    }
 
     updateExporterButton();
 }
@@ -189,7 +203,7 @@ bool HeaderComponent::canCurrentExporterLaunchProject() const noexcept
     return false;
 }
 
-//======================================================================
+//==============================================================================
 int HeaderComponent::getUserButtonWidth() const noexcept
 {
     return userSettingsButton->getWidth();
@@ -201,11 +215,11 @@ void HeaderComponent::sidebarTabsWidthChanged (int newWidth) noexcept
     resized();
 }
 
-//======================================================================
+//==============================================================================
 void HeaderComponent::showUserSettings() noexcept
 {
    #if JUCER_ENABLE_GPL_MODE
-    auto settingsPopupHeight = 40;
+    auto settingsPopupHeight = 100;
     auto settingsPopupWidth = 200;
    #else
     auto settingsPopupHeight = 150;
@@ -219,21 +233,16 @@ void HeaderComponent::showUserSettings() noexcept
     userSettingsWindow = &CallOutBox::launchAsynchronously (content, userSettingsButton->getScreenBounds(), nullptr);
 }
 
-//==========================================================================
+//==============================================================================
 void HeaderComponent::lookAndFeelChanged()
 {
     if (userSettingsWindow != nullptr)
         userSettingsWindow->sendLookAndFeelChange();
 }
 
-void HeaderComponent::changeListenerCallback (ChangeBroadcaster* source)
+void HeaderComponent::changeListenerCallback (ChangeBroadcaster*)
 {
-    if (source == project)
-    {
-        updateName();
-        updateExporters();
-    }
-    else if (childProcess != nullptr)
+    if (childProcess != nullptr)
     {
         if (childProcess->activityList.getNumActivities() > 0)
             buildPing();
@@ -242,12 +251,17 @@ void HeaderComponent::changeListenerCallback (ChangeBroadcaster* source)
     }
 }
 
+void HeaderComponent::valueChanged (Value&)
+{
+    updateName();
+}
+
 void HeaderComponent::timerCallback()
 {
     repaint();
 }
 
-//======================================================================
+//==============================================================================
 static void sendProjectButtonAnalyticsEvent (StringRef label)
 {
     StringPairArray data;
@@ -260,7 +274,8 @@ void HeaderComponent::initialiseButtons() noexcept
 {
     auto& icons = getIcons();
 
-    addAndMakeVisible (projectSettingsButton = new IconButton ("Project Settings", &icons.settings));
+    projectSettingsButton.reset (new IconButton ("Project Settings", &icons.settings));
+    addAndMakeVisible (projectSettingsButton.get());
     projectSettingsButton->onClick = [this]
     {
         sendProjectButtonAnalyticsEvent ("Project Settings");
@@ -269,7 +284,8 @@ void HeaderComponent::initialiseButtons() noexcept
             pcc->showProjectSettings();
     };
 
-    addAndMakeVisible (saveAndOpenInIDEButton = new IconButton ("Save and Open in IDE", nullptr));
+    saveAndOpenInIDEButton.reset (new IconButton ("Save and Open in IDE", nullptr));
+    addAndMakeVisible (saveAndOpenInIDEButton.get());
     saveAndOpenInIDEButton->isIDEButton = true;
     saveAndOpenInIDEButton->onClick = [this]
     {
@@ -279,17 +295,19 @@ void HeaderComponent::initialiseButtons() noexcept
             pcc->openInSelectedIDE (true);
     };
 
-    addAndMakeVisible (userSettingsButton = new IconButton ("User Settings", &icons.user));
+    userSettingsButton.reset (new IconButton ("User Settings", &icons.user));
+    addAndMakeVisible (userSettingsButton.get());
     userSettingsButton->isUserButton = true;
     userSettingsButton->onClick = [this]
     {
         sendProjectButtonAnalyticsEvent ("User Settings");
 
-        if (auto* pcc = findParentComponentOfClass<ProjectContentComponent>())
+        if (findParentComponentOfClass<ProjectContentComponent>() != nullptr)
             showUserSettings();
     };
 
-    addAndMakeVisible (runAppButton = new IconButton ("Run Application", &icons.play));
+    runAppButton.reset (new IconButton ("Run Application", &icons.play));
+    addAndMakeVisible (runAppButton.get());
     runAppButton->onClick = [this]
     {
         sendProjectButtonAnalyticsEvent ("Run Application");
@@ -333,7 +351,7 @@ void HeaderComponent::updateUserAvatar() noexcept
     }
 }
 
-//======================================================================
+//==============================================================================
 void HeaderComponent::buildPing()
 {
     if (! isTimerRunning())

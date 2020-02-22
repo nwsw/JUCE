@@ -33,7 +33,9 @@
                    juce_audio_processors, juce_audio_utils, juce_blocks_basics,
                    juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        BlocksMonitorDemo
@@ -83,7 +85,7 @@ public:
         constrainer.setMinimumOnscreenAmounts (50, 50, 50, 50);
     }
 
-    ~BlockComponent()
+    ~BlockComponent() override
     {
         // Remove any listeners
         if (auto touchSurface = block->getTouchSurface())
@@ -93,7 +95,7 @@ public:
             button->removeListener (this);
     }
 
-    /** Called periodically to update the tooltip with inforamtion about the Block */
+    /** Called periodically to update the tooltip with information about the Block */
     void updateStatsAndTooltip()
     {
         // Get the battery level of this Block and inform any subclasses
@@ -110,7 +112,7 @@ public:
     }
 
     /** Subclasses should override this to paint the Block object on the screen */
-    virtual void paint (Graphics&) override = 0;
+    void paint (Graphics&) override = 0;
 
     /** Subclasses can override this to receive button down events from the Block */
     virtual void handleButtonPressed  (ControlButton::ButtonFunction, uint32) {}
@@ -148,7 +150,7 @@ public:
             { CB::down }
         };
 
-        for (auto i = 0; i < numElementsInArray (map); ++i)
+        for (int i = 0; i < numElementsInArray (map); ++i)
             if (map[i].contains (f))
                 return i;
 
@@ -444,7 +446,7 @@ private:
         {}
 
         /** Subclasses should override this to paint the button on the screen */
-        virtual void paint (Graphics&) override = 0;
+        void paint (Graphics&) override = 0;
 
         /** Sets the colour of the button */
         void setColour (Colour c)   { componentColour = c; }
@@ -597,12 +599,19 @@ public:
 
        #if JUCE_IOS
         connectButton.setButtonText ("Connect");
-        connectButton.onClick = [this] { BluetoothMidiDevicePairingDialogue::open(); };
+        connectButton.onClick = [] { BluetoothMidiDevicePairingDialogue::open(); };
         connectButton.setAlwaysOnTop (true);
         addAndMakeVisible (connectButton);
        #endif
 
         setSize (600, 600);
+
+        topologyChanged();
+    }
+
+    ~BlocksMonitorDemo() override
+    {
+        topologySource.removeListener (this);
     }
 
     void paint (Graphics&) override {}
@@ -963,6 +972,8 @@ private:
     }
 
     //==============================================================================
+    TooltipWindow tooltipWindow;
+
     PhysicalTopologySource topologySource;
     OwnedArray<BlockComponent> blockComponents;
     BlockComponent* masterBlockComponent = nullptr;

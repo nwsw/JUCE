@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra, juce_opengl
- exporters:        xcode_mac, vs2017, xcode_iphone
+ exporters:        xcode_mac, vs2019, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        OpenGLAppDemo
@@ -61,7 +63,7 @@ public:
         setSize (800, 600);
     }
 
-    ~OpenGLAppDemo()
+    ~OpenGLAppDemo() override
     {
         shutdownOpenGL();
     }
@@ -181,7 +183,7 @@ public:
             "    gl_FragColor = colour;\n"
             "}\n";
 
-        ScopedPointer<OpenGLShaderProgram> newShader (new OpenGLShaderProgram (openGLContext));
+        std::unique_ptr<OpenGLShaderProgram> newShader (new OpenGLShaderProgram (openGLContext));
         String statusText;
 
         if (newShader->addVertexShader (OpenGLHelpers::translateVertexShaderToV3 (vertexShader))
@@ -234,7 +236,7 @@ private:
         {
             if (position.get() != nullptr)
             {
-                glContext.extensions.glVertexAttribPointer (position->attributeID, 3, GL_FLOAT, GL_FALSE, sizeof (Vertex), 0);
+                glContext.extensions.glVertexAttribPointer (position->attributeID, 3, GL_FLOAT, GL_FALSE, sizeof (Vertex), nullptr);
                 glContext.extensions.glEnableVertexAttribArray (position->attributeID);
             }
 
@@ -265,7 +267,7 @@ private:
             if (textureCoordIn.get() != nullptr) glContext.extensions.glDisableVertexAttribArray (textureCoordIn->attributeID);
         }
 
-        ScopedPointer<OpenGLShaderProgram::Attribute> position, normal, sourceColour, textureCoordIn;
+        std::unique_ptr<OpenGLShaderProgram::Attribute> position, normal, sourceColour, textureCoordIn;
 
     private:
         static OpenGLShaderProgram::Attribute* createAttribute (OpenGLContext& openGLContext,
@@ -289,7 +291,7 @@ private:
             viewMatrix      .reset (createUniform (openGLContext, shaderProgram, "viewMatrix"));
         }
 
-        ScopedPointer<OpenGLShaderProgram::Uniform> projectionMatrix, viewMatrix;
+        std::unique_ptr<OpenGLShaderProgram::Uniform> projectionMatrix, viewMatrix;
 
     private:
         static OpenGLShaderProgram::Uniform* createUniform (OpenGLContext& openGLContext,
@@ -323,7 +325,7 @@ private:
                 vertexBuffer->bind();
 
                 glAttributes.enable (glContext);
-                glDrawElements (GL_TRIANGLES, vertexBuffer->numIndices, GL_UNSIGNED_INT, 0);
+                glDrawElements (GL_TRIANGLES, vertexBuffer->numIndices, GL_UNSIGNED_INT, nullptr);
                 glAttributes.disable (glContext);
             }
         }
@@ -397,10 +399,10 @@ private:
     const char* vertexShader;
     const char* fragmentShader;
 
-    ScopedPointer<OpenGLShaderProgram> shader;
-    ScopedPointer<Shape> shape;
-    ScopedPointer<Attributes> attributes;
-    ScopedPointer<Uniforms> uniforms;
+    std::unique_ptr<OpenGLShaderProgram> shader;
+    std::unique_ptr<Shape> shape;
+    std::unique_ptr<Attributes> attributes;
+    std::unique_ptr<Uniforms> uniforms;
 
     String newVertexShader, newFragmentShader;
 

@@ -33,7 +33,7 @@
  #define JUCE_SUPPORT_CARBON 0
 #endif
 
-#ifdef __clang__
+#ifdef JUCE_CLANG
  #pragma clang diagnostic push
  #pragma clang diagnostic ignored "-Wshorten-64-to-32"
  #pragma clang diagnostic ignored "-Wunused-parameter"
@@ -42,6 +42,14 @@
  #pragma clang diagnostic ignored "-Wconversion"
  #pragma clang diagnostic ignored "-Woverloaded-virtual"
  #pragma clang diagnostic ignored "-Wextra-semi"
+ #pragma clang diagnostic ignored "-Wcast-align"
+ #pragma clang diagnostic ignored "-Wshadow"
+ #if __has_warning("-Wzero-as-null-pointer-constant")
+  #pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+ #endif
+ #if __has_warning("-Wnullable-to-nonnull-conversion")
+  #pragma clang diagnostic ignored "-Wnullable-to-nonnull-conversion"
+ #endif
 #endif
 
 #include "../utility/juce_IncludeSystemHeaders.h"
@@ -69,7 +77,7 @@
  #include "CoreAudioUtilityClasses/AUCarbonViewBase.h"
 #endif
 
-#ifdef __clang__
+#ifdef JUCE_CLANG
  #pragma clang diagnostic pop
 #endif
 
@@ -107,13 +115,13 @@ struct AudioProcessorHolder
             initialiseJuce_GUI();
         }
 
-        juceFilter = createPluginFilterOfType (AudioProcessor::wrapperType_AudioUnit);
+        juceFilter.reset (createPluginFilterOfType (AudioProcessor::wrapperType_AudioUnit));
 
         // audio units do not have a notion of enabled or un-enabled buses
         juceFilter->enableAllBuses();
     }
 
-    ScopedPointer<AudioProcessor> juceFilter;
+    std::unique_ptr<AudioProcessor> juceFilter;
 };
 
 //==============================================================================
@@ -128,9 +136,8 @@ public:
     JuceAU (AudioUnit component)
         : AudioProcessorHolder(activePlugins.size() + activeUIs.size() == 0),
           MusicDeviceBase (component,
-                           (UInt32) AudioUnitHelpers::getBusCount (juceFilter, true),
-                           (UInt32) AudioUnitHelpers::getBusCount (juceFilter, false)),
-          isBypassed (false),
+                           (UInt32) AudioUnitHelpers::getBusCount (juceFilter.get(), true),
+                           (UInt32) AudioUnitHelpers::getBusCount (juceFilter.get(), false)),
           mapper (*juceFilter)
     {
         inParameterChangedCallback = false;
@@ -180,7 +187,7 @@ public:
             jassertfalse;
     }
 
-    ~JuceAU()
+    ~JuceAU() override
     {
         if (bypassParam != nullptr)
             bypassParam->removeListener (this);
@@ -208,7 +215,7 @@ public:
             return err;
 
         mapper.alloc();
-        pulledSucceeded.calloc (static_cast<size_t> (AudioUnitHelpers::getBusCount (juceFilter, true)));
+        pulledSucceeded.calloc (static_cast<size_t> (AudioUnitHelpers::getBusCount (juceFilter.get(), true)));
 
         prepareToPlay();
 
@@ -298,7 +305,7 @@ public:
         if (isInput) return false;
        #endif
 
-        const int busCount = AudioUnitHelpers::getBusCount (juceFilter, isInput);
+        const int busCount = AudioUnitHelpers::getBusCount (juceFilter.get(), isInput);
         return (juceFilter->canAddBus (isInput) || (busCount > 0 && juceFilter->canRemoveBus (isInput)));
        #endif
     }
@@ -311,12 +318,12 @@ public:
         if ((err = scopeToDirection (scope, isInput)) != noErr)
             return err;
 
-        if (count != (UInt32) AudioUnitHelpers::getBusCount (juceFilter, isInput))
+        if (count != (UInt32) AudioUnitHelpers::getBusCount (juceFilter.get(), isInput))
         {
            #ifdef JucePlugin_PreferredChannelConfigurations
             return kAudioUnitErr_PropertyNotWritable;
            #else
-            const int busCount = AudioUnitHelpers::getBusCount (juceFilter, isInput);
+            const int busCount = AudioUnitHelpers::getBusCount (juceFilter.get(), isInput);
 
             if  ((! juceFilter->canAddBus (isInput)) && ((busCount == 0) || (! juceFilter->canRemoveBus (isInput))))
                 return kAudioUnitErr_PropertyNotWritable;
@@ -360,7 +367,7 @@ public:
             if (err != noErr)
             {
                 // restore bus state
-                const int newBusCount = AudioUnitHelpers::getBusCount (juceFilter, isInput);
+                const int newBusCount = AudioUnitHelpers::getBusCount (juceFilter.get(), isInput);
                 for (int i = newBusCount; i != busCount; i += (busCount > newBusCount ? 1 : -1))
                 {
                     if (busCount > newBusCount)
@@ -474,8 +481,33 @@ public:
         {
             switch (inID)
             {
+                case kAudioUnitProperty_ParameterClumpName:
+
+                    if (auto* clumpNameInfo = (AudioUnitParameterNameInfo*) outData)
+                    {
+                        if (juceFilter != nullptr)
+                        {
+                            auto clumpIndex = clumpNameInfo->inID - 1;
+                            const auto* group = parameterGroups[(int) clumpIndex];
+                            auto name = group->getName();
+
+                            while (group->getParent() != &juceFilter->getParameterTree())
+                            {
+                                group = group->getParent();
+                                name = group->getName() + group->getSeparator() + name;
+                            }
+
+                            clumpNameInfo->outName = name.toCFString();
+                            return noErr;
+                        }
+                    }
+
+                    // Failed to find a group corresponding to the clump ID.
+                    jassertfalse;
+                    break;
+
                 case juceFilterObjectPropertyID:
-                    ((void**) outData)[0] = (void*) static_cast<AudioProcessor*> (juceFilter);
+                    ((void**) outData)[0] = (void*) static_cast<AudioProcessor*> (juceFilter.get());
                     ((void**) outData)[1] = (void*) this;
                     return noErr;
 
@@ -670,7 +702,12 @@ public:
         if (juceFilter != nullptr)
         {
             juce::MemoryBlock state;
+
+           #if JUCE_AU_WRAPPERS_SAVE_PROGRAM_STATES
             juceFilter->getCurrentProgramStateInformation (state);
+           #else
+            juceFilter->getStateInformation (state);
+           #endif
 
             if (state.getSize() > 0)
             {
@@ -702,7 +739,7 @@ public:
         if (juceFilter != nullptr)
         {
             CFDictionaryRef dict = (CFDictionaryRef) inData;
-            CFDataRef data = 0;
+            CFDataRef data = nullptr;
 
             CFStringRef key = CFStringCreateWithCString (kCFAllocatorDefault, JUCE_STATE_DICTIONARY_KEY, kCFStringEncodingUTF8);
 
@@ -711,13 +748,19 @@ public:
 
             if (valuePresent)
             {
-                if (data != 0)
+                if (data != nullptr)
                 {
                     const int numBytes = (int) CFDataGetLength (data);
                     const juce::uint8* const rawBytes = CFDataGetBytePtr (data);
 
                     if (numBytes > 0)
+                    {
+                       #if JUCE_AU_WRAPPERS_SAVE_PROGRAM_STATES
                         juceFilter->setCurrentProgramStateInformation (rawBytes, numBytes);
+                       #else
+                        juceFilter->setStateInformation (rawBytes, numBytes);
+                       #endif
+                    }
                 }
             }
         }
@@ -842,9 +885,14 @@ public:
 
     //==============================================================================
     // When parameters are discrete we need to use integer values.
-    float getMaximumParameterValue (AudioProcessorParameter* param)
+    float getMaximumParameterValue (AudioProcessorParameter* juceParam)
     {
-        return param->isDiscrete() && (! forceUseLegacyParamIDs) ? (float) (param->getNumSteps() - 1) : 1.0f;
+       #if JUCE_FORCE_LEGACY_PARAMETER_AUTOMATION_TYPE
+        ignoreUnused (juceParam);
+        return 1.0f;
+       #else
+        return juceParam->isDiscrete() ? (float) (juceParam->getNumSteps() - 1) : 1.0f;
+       #endif
     }
 
     ComponentResult GetParameterInfo (AudioUnitScope inScope,
@@ -879,8 +927,16 @@ public:
                 if (param->isMetaParameter())
                     outParameterInfo.flags |= kAudioUnitParameterFlag_IsGlobalMeta;
 
+                auto parameterGroupHierarchy = juceFilter->getParameterTree().getGroupsForParameter (param);
+
+                if (! parameterGroupHierarchy.isEmpty())
+                {
+                    outParameterInfo.flags |= kAudioUnitParameterFlag_HasClump;
+                    outParameterInfo.clumpID = (UInt32) parameterGroups.indexOf (parameterGroupHierarchy.getLast()) + 1;
+                }
+
                 // Is this a meter?
-                if (((param->getCategory() & 0xffff0000) >> 16) == 2)
+                if ((((unsigned int) param->getCategory() & 0xffff0000) >> 16) == 2)
                 {
                     outParameterInfo.flags &= ~kAudioUnitParameterFlag_IsWritable;
                     outParameterInfo.flags |= kAudioUnitParameterFlag_MeterReadOnly | kAudioUnitParameterFlag_DisplayLogarithmic;
@@ -890,12 +946,8 @@ public:
                 {
                    #if ! JUCE_FORCE_LEGACY_PARAMETER_AUTOMATION_TYPE
                     if (isParameterDiscrete)
-                    {
-                        outParameterInfo.unit = kAudioUnitParameterUnit_Indexed;
-
-                        if (param->isBoolean())
-                            outParameterInfo.unit = kAudioUnitParameterUnit_Boolean;
-                    }
+                        outParameterInfo.unit = param->isBoolean() ? kAudioUnitParameterUnit_Boolean
+                                                                   : kAudioUnitParameterUnit_Indexed;
                    #endif
                 }
 
@@ -931,10 +983,10 @@ public:
 
                     if (auto* valueStrings = parameterValueStringArrays[index])
                     {
-                        *outStrings = CFArrayCreate (NULL,
+                        *outStrings = CFArrayCreate (nullptr,
                                                      (const void **) valueStrings->getRawDataPointer(),
                                                      valueStrings->size(),
-                                                     NULL);
+                                                     nullptr);
 
                         return noErr;
                     }
@@ -996,7 +1048,7 @@ public:
     ComponentResult Version() override                   { return JucePlugin_VersionCode; }
     bool SupportsTail() override                         { return true; }
     Float64 GetTailTime() override                       { return juceFilter->getTailLengthSeconds(); }
-    double getSampleRate()                               { return AudioUnitHelpers::getBusCount (juceFilter, false) > 0 ? GetOutput(0)->GetStreamFormat().mSampleRate : 44100.0; }
+    double getSampleRate()                               { return AudioUnitHelpers::getBusCount (juceFilter.get(), false) > 0 ? GetOutput (0)->GetStreamFormat().mSampleRate : 44100.0; }
 
     Float64 GetLatency() override
     {
@@ -1092,7 +1144,7 @@ public:
     {
         auEvent.mEventType = type;
         auEvent.mArgument.mParameter.mParameterID = getAUParameterIDForIndex (juceParamIndex);
-        AUEventListenerNotify (0, 0, &auEvent);
+        AUEventListenerNotify (nullptr, nullptr, &auEvent);
     }
 
     void audioProcessorParameterChanged (AudioProcessor*, int index, float /*newValue*/) override
@@ -1365,7 +1417,7 @@ public:
             clearPresetsArray();
             presetsArray.insertMultiple (0, AUPreset(), numPrograms);
 
-            CFMutableArrayRef presetsArrayRef = CFArrayCreateMutable (0, numPrograms, 0);
+            CFMutableArrayRef presetsArrayRef = CFArrayCreateMutable (nullptr, numPrograms, nullptr);
 
             for (int i = 0; i < numPrograms; ++i)
             {
@@ -1429,7 +1481,6 @@ public:
     public:
         EditorCompHolder (AudioProcessorEditor* const editor)
         {
-            setSize (editor->getWidth(), editor->getHeight());
             addAndMakeVisible (editor);
 
            #if ! JucePlugin_EditorRequiresKeyboardFocus
@@ -1439,21 +1490,30 @@ public:
            #endif
 
             ignoreUnused (fakeMouseGenerator);
+            setBounds (getSizeToContainChild());
         }
 
-        ~EditorCompHolder()
+        ~EditorCompHolder() override
         {
-            deleteAllChildren(); // note that we can't use a ScopedPointer because the editor may
+            deleteAllChildren(); // note that we can't use a std::unique_ptr because the editor may
                                  // have been transferred to another parent which takes over ownership.
+        }
+
+        Rectangle<int> getSizeToContainChild()
+        {
+            if (auto* editor = getChildComponent (0))
+                return getLocalArea (editor, editor->getLocalBounds());
+
+            return {};
         }
 
         static NSView* createViewFor (AudioProcessor* filter, JuceAU* au, AudioProcessorEditor* const editor)
         {
-            EditorCompHolder* editorCompHolder = new EditorCompHolder (editor);
-            NSRect r = makeNSRect (editorCompHolder->getLocalBounds());
+            auto* editorCompHolder = new EditorCompHolder (editor);
+            auto r = makeNSRect (editorCompHolder->getSizeToContainChild());
 
             static JuceUIViewClass cls;
-            NSView* view = [[cls.createInstance() initWithFrame: r] autorelease];
+            auto* view = [[cls.createInstance() initWithFrame: r] autorelease];
 
             JuceUIViewClass::setFilter (view, filter);
             JuceUIViewClass::setAU (view, au);
@@ -1470,29 +1530,33 @@ public:
 
             editorCompHolder->addToDesktop (0, (void*) view);
             editorCompHolder->setVisible (view);
+
             return view;
         }
 
         void childBoundsChanged (Component*) override
         {
-            if (Component* editor = getChildComponent(0))
+            auto b = getSizeToContainChild();
+
+            if (lastBounds != b)
             {
-                const int w = jmax (32, editor->getWidth());
-                const int h = jmax (32, editor->getHeight());
+                lastBounds = b;
 
-                if (getWidth() != w || getHeight() != h)
-                    setSize (w, h);
+                auto w = jmax (32, b.getWidth());
+                auto h = jmax (32, b.getHeight());
 
-                NSView* view = (NSView*) getWindowHandle();
-                NSRect r = [[view superview] frame];
-                r.size.width = editor->getWidth();
-                r.size.height = editor->getHeight();
+                setSize (w, h);
+
+                auto* view = (NSView*) getWindowHandle();
+                auto r = [[view superview] frame];
+                r.size.width  = w;
+                r.size.height = h;
 
                 [CATransaction begin];
-                [CATransaction setValue:(id)kCFBooleanTrue forKey:kCATransactionDisableActions];
+                [CATransaction setValue:(id) kCFBooleanTrue forKey:kCATransactionDisableActions];
 
                 [[view superview] setFrame: r];
-                [view setFrame: makeNSRect (editor->getLocalBounds())];
+                [view setFrame: makeNSRect (b)];
                 [CATransaction commit];
 
                 [view setNeedsDisplay: YES];
@@ -1515,7 +1579,7 @@ public:
                     NSWindow* hostWindow = [hostView window];
 
                     [hostWindow makeFirstResponder: hostView];
-                    [hostView keyDown: [NSApp currentEvent]];
+                    [hostView keyDown: (NSEvent*) [NSApp currentEvent]];
                     [hostWindow makeFirstResponder: view];
                 }
             }
@@ -1525,6 +1589,7 @@ public:
 
     private:
         FakeMouseMoveGenerator fakeMouseGenerator;
+        Rectangle<int> lastBounds;
 
         JUCE_DECLARE_NON_COPYABLE (EditorCompHolder)
     };
@@ -1559,7 +1624,7 @@ public:
 
         static void deleteEditor (id self)
         {
-            ScopedPointer<EditorCompHolder> editorComp (getEditor (self));
+            std::unique_ptr<EditorCompHolder> editorComp (getEditor (self));
 
             if (editorComp != nullptr)
             {
@@ -1674,7 +1739,7 @@ private:
     //==============================================================================
     AudioUnitHelpers::CoreAudioBufferList audioBuffer;
     MidiBuffer midiEvents, incomingEvents;
-    bool prepared, isBypassed;
+    bool prepared = false, isBypassed = false;
 
     //==============================================================================
    #if JUCE_FORCE_USE_LEGACY_PARAM_IDS
@@ -1687,6 +1752,7 @@ private:
     LegacyAudioParametersWrapper juceParameters;
     HashMap<int32, AudioProcessorParameter*> paramMap;
     Array<AudioUnitParameterID> auParamIDs;
+    Array<const AudioProcessorParameterGroup*> parameterGroups;
 
     //==============================================================================
     AudioUnitEvent auEvent;
@@ -1831,7 +1897,7 @@ private:
         busIdx = static_cast<int> (element);
 
         if ((err = scopeToDirection (scope, isInput)) != noErr) return err;
-        if (isPositiveAndBelow (busIdx, AudioUnitHelpers::getBusCount (juceFilter, isInput))) return noErr;
+        if (isPositiveAndBelow (busIdx, AudioUnitHelpers::getBusCount (juceFilter.get(), isInput))) return noErr;
 
         return kAudioUnitErr_InvalidElement;
     }
@@ -1839,29 +1905,30 @@ private:
     //==============================================================================
     void addParameters()
     {
-        juceParameters.update (*juceFilter, forceUseLegacyParamIDs);
+        parameterGroups = juceFilter->getParameterTree().getSubgroups (true);
 
-        // check if all parameters are managed?
+        juceParameters.update (*juceFilter, forceUseLegacyParamIDs);
         const int numParams = juceParameters.getNumParameters();
 
-        for (auto* param : juceParameters.params)
+        if (forceUseLegacyParamIDs)
         {
-            const AudioUnitParameterID auParamID = generateAUParameterID (param);
-
-            // Consider yourself very unlucky if you hit this assertion. The hash code of your
-            // parameter ids are not unique.
-            jassert (! paramMap.contains (static_cast<int32> (auParamID)));
-
-            auParamIDs.add (auParamID);
-            paramMap.set (static_cast<int32> (auParamID), param);
-
-            if (juceParameters.isUsingManagedParameters())
-                Globals()->SetParameter (auParamID, param->getValue());
-        }
-
-        if (! juceParameters.isUsingManagedParameters())
             Globals()->UseIndexedParameters (numParams);
+        }
+        else
+        {
+            for (auto* param : juceParameters.params)
+            {
+                const AudioUnitParameterID auParamID = generateAUParameterID (param);
 
+                // Consider yourself very unlucky if you hit this assertion. The hash codes of your
+                // parameter ids are not unique.
+                jassert (! paramMap.contains (static_cast<int32> (auParamID)));
+
+                auParamIDs.add (auParamID);
+                paramMap.set (static_cast<int32> (auParamID), param);
+                Globals()->SetParameter (auParamID, param->getValue());
+            }
+        }
 
        #if JUCE_DEBUG
         // Some hosts can't handle the huge numbers of discrete parameter values created when
@@ -1878,6 +1945,7 @@ private:
             OwnedArray<const __CFString>* stringValues = nullptr;
 
             auto initialValue = param->getValue();
+            bool paramIsLegacy = dynamic_cast<LegacyAudioParameter*> (param) != nullptr;
 
             if (param->isDiscrete() && (! forceUseLegacyParamIDs))
             {
@@ -1887,17 +1955,26 @@ private:
 
                 const auto maxValue = getMaximumParameterValue (param);
 
+                auto getTextValue = [param, paramIsLegacy] (float value)
+                {
+                    if (paramIsLegacy)
+                    {
+                        param->setValue (value);
+                        return param->getCurrentValueAsText();
+                    }
+
+                    return param->getText (value, 256);
+                };
+
                 for (int i = 0; i < numSteps; ++i)
                 {
                     auto value = (float) i / maxValue;
-
-                    // Once legacy parameters are deprecated this can be replaced by getText
-                    param->setValue (value);
-                    stringValues->add (CFStringCreateCopy (nullptr, (param->getCurrentValueAsText().toCFString())));
+                    stringValues->add (CFStringCreateCopy (nullptr, (getTextValue (value).toCFString())));
                 }
             }
 
-            param->setValue (initialValue);
+            if (paramIsLegacy)
+                param->setValue (initialValue);
 
             parameterValueStringArrays.add (stringValues);
         }
@@ -1914,30 +1991,32 @@ private:
 
        #if JUCE_USE_STUDIO_ONE_COMPATIBLE_PARAMETERS
         // studio one doesn't like negative parameters
-        paramHash &= ~(1 << (sizeof (AudioUnitParameterID) * 8 - 1));
+        paramHash &= ~(((AudioUnitParameterID) 1) << (sizeof (AudioUnitParameterID) * 8 - 1));
        #endif
 
-        return juceParameters.isUsingManagedParameters() ? paramHash
-                                                         : static_cast<AudioUnitParameterID> (juceParamID.getIntValue());
+        return forceUseLegacyParamIDs ? static_cast<AudioUnitParameterID> (juceParamID.getIntValue())
+                                      : paramHash;
     }
 
     inline AudioUnitParameterID getAUParameterIDForIndex (int paramIndex) const noexcept
     {
-        return juceParameters.isUsingManagedParameters() ? auParamIDs.getReference (paramIndex)
-                                                         : static_cast<AudioUnitParameterID> (paramIndex);
+        return forceUseLegacyParamIDs ? static_cast<AudioUnitParameterID> (paramIndex)
+                                      : auParamIDs.getReference (paramIndex);
     }
 
     AudioProcessorParameter* getParameterForAUParameterID (AudioUnitParameterID address) const noexcept
     {
-        return paramMap[static_cast<int32> (address)];
+        auto index = static_cast<int32> (address);
+        return forceUseLegacyParamIDs ? juceParameters.getParamForIndex (index)
+                                      : paramMap[index];
     }
 
     //==============================================================================
     OSStatus syncAudioUnitWithProcessor()
     {
         OSStatus err = noErr;
-        const int enabledInputs  = AudioUnitHelpers::getBusCount (juceFilter, true);
-        const int enabledOutputs = AudioUnitHelpers::getBusCount (juceFilter, false);
+        const int enabledInputs  = AudioUnitHelpers::getBusCount (juceFilter.get(), true);
+        const int enabledOutputs = AudioUnitHelpers::getBusCount (juceFilter.get(), false);
 
         if ((err =  MusicDeviceBase::SetBusCount (kAudioUnitScope_Input,  static_cast<UInt32> (enabledInputs))) != noErr)
             return err;
@@ -1958,8 +2037,8 @@ private:
 
     OSStatus syncProcessorWithAudioUnit()
     {
-        const int numInputBuses  = AudioUnitHelpers::getBusCount (juceFilter, true);
-        const int numOutputBuses = AudioUnitHelpers::getBusCount (juceFilter, false);
+        const int numInputBuses  = AudioUnitHelpers::getBusCount (juceFilter.get(), true);
+        const int numOutputBuses = AudioUnitHelpers::getBusCount (juceFilter.get(), false);
 
         const int numInputElements  = static_cast<int> (GetScope(kAudioUnitScope_Input). GetNumberOfElements());
         const int numOutputElements = static_cast<int> (GetScope(kAudioUnitScope_Output).GetNumberOfElements());
@@ -1994,7 +2073,7 @@ private:
             return kAudioUnitErr_FormatNotSupported;
        #endif
 
-        if (! AudioUnitHelpers::setBusesLayout (juceFilter, requestedLayouts))
+        if (! AudioUnitHelpers::setBusesLayout (juceFilter.get(), requestedLayouts))
             return kAudioUnitErr_FormatNotSupported;
 
         // update total channel count
@@ -2094,7 +2173,7 @@ private:
     {
         auto& layouts = isInput ? supportedInputLayouts : supportedOutputLayouts;
         layouts.clear();
-        auto numBuses = AudioUnitHelpers::getBusCount (juceFilter, isInput);
+        auto numBuses = AudioUnitHelpers::getBusCount (juceFilter.get(), isInput);
 
         for (int busNr = 0; busNr < numBuses; ++busNr)
         {
@@ -2109,8 +2188,8 @@ private:
     {
         currentInputLayout.clear(); currentOutputLayout.clear();
 
-        currentInputLayout. resize (AudioUnitHelpers::getBusCount (juceFilter, true));
-        currentOutputLayout.resize (AudioUnitHelpers::getBusCount (juceFilter, false));
+        currentInputLayout. resize (AudioUnitHelpers::getBusCount (juceFilter.get(), true));
+        currentOutputLayout.resize (AudioUnitHelpers::getBusCount (juceFilter.get(), false));
 
         addSupportedLayoutTagsForDirection (true);
         addSupportedLayoutTagsForDirection (false);
@@ -2186,7 +2265,7 @@ public:
                 if (AudioProcessorEditor* editorComp = juceFilter->createEditorIfNeeded())
                 {
                     editorComp->setOpaque (true);
-                    windowComp = new ComponentInHIView (editorComp, mCarbonPane);
+                    windowComp.reset (new ComponentInHIView (editorComp, mCarbonPane));
                 }
             }
             else
@@ -2204,7 +2283,7 @@ public:
 private:
     //==============================================================================
     AudioProcessor* juceFilter;
-    ScopedPointer<Component> windowComp;
+    std::unique_ptr<Component> windowComp;
     FakeMouseMoveGenerator fakeMouseGenerator;
 
     void deleteUI()
@@ -2423,7 +2502,19 @@ JUCE_FACTORY_ENTRY   (JuceAU, JucePlugin_AUExportPrefix)
 #endif
 
 #if ! JUCE_DISABLE_AU_FACTORY_ENTRY
+ #ifdef JUCE_CLANG
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wcast-align"
+  #if __has_warning("-Wzero-as-null-pointer-constant")
+   #pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+  #endif
+ #endif
+
  #include "CoreAudioUtilityClasses/AUPlugInDispatch.cpp"
+
+ #ifdef JUCE_CLANG
+  #pragma clang diagnostic push
+ #endif
 #endif
 
 #endif

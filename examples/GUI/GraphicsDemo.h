@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        GraphicsDemo
@@ -490,22 +492,24 @@ public:
         ZipFile icons (createAssetInputStream ("icons.zip"), true);
 
         // Load a random SVG file from our embedded icons.zip file.
-        const ScopedPointer<InputStream> svgFileStream (icons.createStreamForEntry (Random::getSystemRandom().nextInt (icons.getNumEntries())));
+        const std::unique_ptr<InputStream> svgFileStream (icons.createStreamForEntry (Random::getSystemRandom().nextInt (icons.getNumEntries())));
 
         if (svgFileStream.get() != nullptr)
         {
-            svgDrawable.reset (dynamic_cast<DrawableComposite*> (Drawable::createFromImageDataStream (*svgFileStream)));
+            svgDrawable = Drawable::createFromImageDataStream (*svgFileStream);
 
-            if (svgDrawable.get() != nullptr)
+            if (svgDrawable != nullptr)
             {
                 // to make our icon the right size, we'll set its bounding box to the size and position that we want.
-                svgDrawable->setBoundingBox ({ -100.0f, -100.0f, 200.0f, 200.0f });
+
+                if (auto comp = dynamic_cast<DrawableComposite*> (svgDrawable.get()))
+                    comp->setBoundingBox ({ -100.0f, -100.0f, 200.0f, 200.0f });
             }
         }
     }
 
     Time lastSVGLoadTime;
-    ScopedPointer<DrawableComposite> svgDrawable;
+    std::unique_ptr<Drawable> svgDrawable;
 };
 
 //==============================================================================

@@ -90,7 +90,7 @@ static LicenseState::ApplicationUsageData getApplicationUsageDataTypeFromValue (
     return LicenseState::ApplicationUsageData::notChosenYet;
 }
 
-#if !JUCER_ENABLE_GPL_MODE
+#if ! JUCER_ENABLE_GPL_MODE
 struct LicenseController::ModalCompletionCallback : ModalComponentManager::Callback
 {
     ModalCompletionCallback (LicenseController& controller) : owner (controller) {}
@@ -147,13 +147,13 @@ void LicenseController::startWebviewIfNeeded()
 
    #if ! JUCER_ENABLE_GPL_MODE
     if (thread == nullptr)
-        thread = new LicenseThread (*this, false);
+        thread.reset (new LicenseThread (*this, false));
    #endif
 }
 
 void LicenseController::logout()
 {
-    jassert (MessageManager::getInstance()->isThisTheMessageThread());
+    JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
 
    #if ! JUCER_ENABLE_GPL_MODE
     thread.reset();
@@ -163,17 +163,17 @@ void LicenseController::logout()
     WebBrowserComponent::clearCookies();
    #endif
 
-    thread = new LicenseThread (*this, false);
+    thread.reset (new LicenseThread (*this, false));
    #endif
 }
 
 void LicenseController::chooseNewLicense()
 {
-    jassert (MessageManager::getInstance()->isThisTheMessageThread());
+    JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
 
    #if ! JUCER_ENABLE_GPL_MODE
     thread.reset();
-    thread = new LicenseThread (*this, true);
+    thread.reset (new LicenseThread (*this, true));
    #endif
 }
 
@@ -293,14 +293,12 @@ LicenseState LicenseController::licenseStateFromOldSettings (XmlElement* license
 
 LicenseState LicenseController::licenseStateFromSettings (PropertiesFile& props)
 {
-    ScopedPointer<XmlElement> licenseXml = props.getXmlValue ("license");
-
-    if (licenseXml != nullptr)
+    if (auto licenseXml = props.getXmlValue ("license"))
     {
         // this is here for backwards compatibility with old-style settings files using XML text elements
         if (licenseXml->getChildElementAllSubText ("type", {}) != String())
         {
-            auto stateFromOldSettings = licenseStateFromOldSettings (licenseXml);
+            auto stateFromOldSettings = licenseStateFromOldSettings (licenseXml.get());
 
             licenseStateToSettings (stateFromOldSettings, props);
 

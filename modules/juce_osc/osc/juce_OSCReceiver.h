@@ -42,8 +42,11 @@ class JUCE_API  OSCReceiver
 {
 public:
     //==============================================================================
-    /** Constructs a new OSCReceiver. */
+    /** Creates an OSCReceiver. */
     OSCReceiver();
+
+    /** Creates an OSCReceiver with a specific name for its thread. */
+    OSCReceiver (const String& threadName);
 
     /** Destructor. */
     ~OSCReceiver();
@@ -107,7 +110,7 @@ public:
     {
     public:
         /** Destructor. */
-        virtual ~Listener() {}
+        virtual ~Listener() = default;
 
         /** Called when the OSCReceiver receives a new OSC message.
             You must implement this function.
@@ -137,7 +140,7 @@ public:
         and has to be either MessageLoopCallback or RealtimeCallback. If not specified,
         MessageLoopCallback will be used by default.
 
-        Note: this type of listener will ignore OSC bundles.
+        Note: This type of listener will ignore OSC bundles.
 
         @see OSCReceiver::addListener, OSCReceiver::Listener,
              OSCReceiver::MessageLoopCallback, OSCReceiver::RealtimeCallback
@@ -147,7 +150,7 @@ public:
     {
     public:
         /** Destructor. */
-        virtual ~ListenerWithOSCAddress() {}
+        virtual ~ListenerWithOSCAddress() = default;
 
         /** Called when the OSCReceiver receives an OSC message with an OSC address
             pattern that matches the OSC address with which this listener was added.
@@ -200,7 +203,7 @@ public:
         The arguments passed are the pointer to and the data of the buffer that
         the OSCReceiver has failed to parse.
     */
-    typedef std::function<void (const char* data, int dataSize)> FormatErrorHandler;
+    using FormatErrorHandler = std::function<void(const char* data, int dataSize)>;
 
     /** Installs a custom error handler which is called in case the receiver
         encounters a stream it cannot parse as an OSC bundle or OSC message.
@@ -213,9 +216,7 @@ public:
 private:
     //==============================================================================
     struct Pimpl;
-    friend struct Pimpl;
-    friend struct ContainerDeletePolicy<Pimpl>;
-    ScopedPointer<Pimpl> pimpl;
+    std::unique_ptr<Pimpl> pimpl;
     friend struct OSCReceiverCallbackMessage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSCReceiver)

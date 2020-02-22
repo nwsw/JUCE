@@ -34,8 +34,6 @@
 #define CREATE_FILEPATH(DemoName, category) JUCE_STRINGIFY(EXPAND(category)/EXPAND(DemoName)EXPAND(FILE_EXT))
 
 #define REGISTER_DEMO(DemoName, category, heavyweight) JUCEDemos::registerDemo ([] { return new DemoName(); }, CREATE_FILEPATH(DemoName, category), JUCE_STRINGIFY (category), heavyweight);
-#define REGISTER_DEMO_WITH_FILENAME(DemoName, category, fileName, heavyweight) JUCEDemos::registerDemo ([] { return new DemoName(); }, CREATE_FILEPATH(fileName, category), JUCE_STRINGIFY (category), heavyweight);
-
 
 //==============================================================================
 struct JUCEDemos
@@ -72,6 +70,6 @@ CodeEditorComponent::ColourScheme getDarkColourScheme();
 CodeEditorComponent::ColourScheme getLightColourScheme();
 
 //==============================================================================
-extern ScopedPointer<AudioDeviceManager> sharedAudioDeviceManager;
+extern std::unique_ptr<AudioDeviceManager> sharedAudioDeviceManager;
 
 AudioDeviceManager& getSharedAudioDeviceManager (int numInputChannels = -1, int numOutputChannels = -1);

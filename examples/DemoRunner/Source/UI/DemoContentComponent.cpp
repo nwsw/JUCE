@@ -45,7 +45,7 @@ struct DemoContent    : public Component
 
         if (comp != nullptr)
         {
-            addAndMakeVisible (comp);
+            addAndMakeVisible (comp.get());
             resized();
         }
     }
@@ -54,7 +54,7 @@ struct DemoContent    : public Component
     void showHomeScreen()                       { setComponent (createIntroDemo()); }
 
 private:
-    ScopedPointer<Component> comp;
+    std::unique_ptr<Component> comp;
 };
 
 //==============================================================================
@@ -103,12 +103,14 @@ struct CodeContent    : public Component
 //==============================================================================
 DemoContentComponent::DemoContentComponent (Component& mainComponent, std::function<void(bool)> callback)
     : TabbedComponent (TabbedButtonBar::Orientation::TabsAtTop),
-      demoChangedCallback (callback)
+      demoChangedCallback (std::move (callback))
 {
-    addTab ("Demo",     Colours::transparentBlack, demoContent = new DemoContent(), false);
+    demoContent.reset (new DemoContent());
+    addTab ("Demo",     Colours::transparentBlack, demoContent.get(), false);
 
    #if ! (JUCE_ANDROID || JUCE_IOS)
-    addTab ("Code",     Colours::transparentBlack, codeContent = new CodeContent(), false);
+    codeContent.reset (new CodeContent());
+    addTab ("Code",     Colours::transparentBlack, codeContent.get(), false);
    #endif
 
     addTab ("Settings", Colours::transparentBlack, new SettingsContent (dynamic_cast<MainComponent&> (mainComponent)), true);
@@ -154,7 +156,7 @@ void DemoContentComponent::setDemo (const String& category, int selectedDemoInde
 
 bool DemoContentComponent::isShowingHomeScreen() const noexcept
 {
-    return isComponentIntroDemo (demoContent->getComponent());
+    return isComponentIntroDemo (demoContent->getComponent()) && getCurrentTabIndex() == 0;
 }
 
 void DemoContentComponent::showHomeScreen()

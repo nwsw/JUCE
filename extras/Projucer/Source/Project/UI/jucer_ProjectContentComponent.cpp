@@ -27,6 +27,7 @@
 #include "../../Application/jucer_Headers.h"
 #include "jucer_ProjectContentComponent.h"
 #include "../../LiveBuildEngine/jucer_DownloadCompileEngineThread.h"
+#include "../../LiveBuildEngine/jucer_CompileEngineSettings.h"
 
 #include "jucer_HeaderComponent.h"
 #include "Sidebar/jucer_TabComponents.h"
@@ -38,8 +39,10 @@ struct LogoComponent  : public Component
 {
     LogoComponent()
     {
-        ScopedPointer<XmlElement> svg (XmlDocument::parse (BinaryData::background_logo_svg));
-        logo = Drawable::createFromSVG (*svg);
+        if (auto svg = parseXML (BinaryData::background_logo_svg))
+            logo = Drawable::createFromSVG (*svg);
+        else
+            jassertfalse;
     }
 
     void paint (Graphics& g) override
@@ -62,7 +65,7 @@ struct LogoComponent  : public Component
                 + ProjucerApplication::getApp().getVersionDescription();
     }
 
-    ScopedPointer<Drawable> logo;
+    std::unique_ptr<Drawable> logo;
 };
 
 //==============================================================================
@@ -71,10 +74,14 @@ ProjectContentComponent::ProjectContentComponent()
     setOpaque (true);
     setWantsKeyboardFocus (true);
 
-    addAndMakeVisible (logo = new LogoComponent());
-    addAndMakeVisible (header = new HeaderComponent());
+    logo.reset (new LogoComponent());
+    addAndMakeVisible (logo.get());
 
-    addAndMakeVisible (fileNameLabel = new Label());
+    header.reset (new HeaderComponent());
+    addAndMakeVisible (header.get());
+
+    fileNameLabel.reset (new Label());
+    addAndMakeVisible (fileNameLabel.get());
     fileNameLabel->setJustificationType (Justification::centred);
 
     sidebarSizeConstrainer.setMinimumWidth (200);
@@ -248,7 +255,7 @@ void ProjectContentComponent::rebuildProjectTabs()
         addAndMakeVisible (sidebarTabs);
         createProjectTabs();
 
-        //======================================================================
+        //==============================================================================
         auto& settings = project->getStoredProperties();
 
         auto lastTreeWidth = settings.getValue ("projectPanelWidth").getIntValue();
@@ -264,9 +271,10 @@ void ProjectContentComponent::rebuildProjectTabs()
             projectTab->setPanelHeightProportion (i, settings.getValue ("projectTabPanelHeight" + String (i), "1")
                                                              .getFloatValue());
 
-        //======================================================================
-        addAndMakeVisible (resizerBar = new ResizableEdgeComponent (&sidebarTabs, &sidebarSizeConstrainer,
-                                                                    ResizableEdgeComponent::rightEdge));
+        //==============================================================================
+        resizerBar.reset (new ResizableEdgeComponent (&sidebarTabs, &sidebarSizeConstrainer,
+                                                      ResizableEdgeComponent::rightEdge));
+        addAndMakeVisible (resizerBar.get());
         resizerBar->setAlwaysOnTop (true);
 
         project->addChangeListener (this);
@@ -296,10 +304,10 @@ void ProjectContentComponent::saveOpenDocumentList()
 {
     if (project != nullptr)
     {
-        ScopedPointer<XmlElement> xml (recentDocumentList.createXML());
+        std::unique_ptr<XmlElement> xml (recentDocumentList.createXML());
 
         if (xml != nullptr)
-            project->getStoredProperties().setValue ("lastDocs", xml);
+            project->getStoredProperties().setValue ("lastDocs", xml.get());
     }
 }
 
@@ -307,9 +315,7 @@ void ProjectContentComponent::reloadLastOpenDocuments()
 {
     if (project != nullptr)
     {
-        ScopedPointer<XmlElement> xml (project->getStoredProperties().getXmlValue ("lastDocs"));
-
-        if (xml != nullptr)
+        if (auto xml = project->getStoredProperties().getXmlValue ("lastDocs"))
         {
             recentDocumentList.restoreFromXML (*project, *xml);
             showDocument (recentDocumentList.getCurrentDocument(), true);
@@ -326,6 +332,13 @@ bool ProjectContentComponent::documentAboutToClose (OpenDocumentManager::Documen
 void ProjectContentComponent::changeListenerCallback (ChangeBroadcaster*)
 {
     updateMissingFileStatuses();
+}
+
+void ProjectContentComponent::refreshProjectTreeFileStatuses()
+{
+    if (auto* projectTab = getProjectTab())
+        if (auto* fileTree = projectTab->getFileTreePanel())
+            fileTree->repaint();
 }
 
 void ProjectContentComponent::updateMissingFileStatuses()
@@ -419,7 +432,7 @@ bool ProjectContentComponent::setEditorComponent (Component* editor,
         {
             auto* viewport = new ContentViewport (editor);
 
-            contentView = viewport;
+            contentView.reset (viewport);
             currentDocument = nullptr;
             fileNameLabel->setVisible (false);
 
@@ -427,7 +440,7 @@ bool ProjectContentComponent::setEditorComponent (Component* editor,
         }
         else
         {
-            contentView = editor;
+            contentView.reset (editor);
             currentDocument = doc;
             fileNameLabel->setText (doc->getFile().getFileName(), dontSendNotification);
             fileNameLabel->setVisible (true);
@@ -476,6 +489,8 @@ void ProjectContentComponent::saveDocument()
     {
         if (! currentDocument->save())
             showSaveWarning (currentDocument);
+
+        refreshProjectTreeFileStatuses();
     }
     else
     {
@@ -485,8 +500,13 @@ void ProjectContentComponent::saveDocument()
 
 void ProjectContentComponent::saveAs()
 {
-    if (currentDocument != nullptr && ! currentDocument->saveAs())
-        showSaveWarning (currentDocument);
+    if (currentDocument != nullptr)
+    {
+        if (! currentDocument->saveAs())
+            showSaveWarning (currentDocument);
+
+        refreshProjectTreeFileStatuses();
+    }
 }
 
 bool ProjectContentComponent::goToPreviousFile()
@@ -539,7 +559,7 @@ bool ProjectContentComponent::saveProject (bool shouldWait, bool openInIDE)
 void ProjectContentComponent::closeProject()
 {
     if (auto* mw = findParentComponentOfClass<MainWindow>())
-        mw->closeCurrentProject();
+        mw->closeCurrentProject (true);
 }
 
 void ProjectContentComponent::showProjectSettings()
@@ -639,7 +659,7 @@ void ProjectContentComponent::openInSelectedIDE (bool saveFirst)
 
             for (Project::ExporterIterator exporter (*project); exporter.next();)
             {
-                if (exporter->canLaunchProject() && exporter->getName() == selectedIDE)
+                if (exporter->canLaunchProject() && exporter->getName().contains (selectedIDE))
                 {
                     auto tempProject = project->isTemporaryProject(); // store this before saving as it will always be false after
 
@@ -825,6 +845,7 @@ void ProjectContentComponent::getCommandInfo (const CommandID commandID, Applica
                         "Saves the current project",
                         CommandCategories::general, 0);
         result.setActive (project != nullptr && ! project->isCurrentlySaving());
+        result.defaultKeypresses.add ({ 'p', ModifierKeys::commandModifier, 0 });
         break;
 
     case CommandIDs::closeProject:

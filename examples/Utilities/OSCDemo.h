@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_osc
- exporters:        xcode_mac, vs2017, linux_make
+ exporters:        xcode_mac, vs2019, linux_make
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        OSCDemo
@@ -56,7 +58,7 @@ public:
         setModel (this);
     }
 
-    ~OSCLogListBox() {}
+    ~OSCLogListBox() override = default;
 
     //==============================================================================
     int getNumRows() override
@@ -412,7 +414,7 @@ private:
     {
         AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
                                           "Unknown error",
-                                          "An unknown error occured while trying to disconnect from UDP port.",
+                                          "An unknown error occurred while trying to disconnect from UDP port.",
                                           "OK");
     }
 

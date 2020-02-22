@@ -24,7 +24,7 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "MainComponent.h"
 
 Component* createMainContentComponent();
@@ -43,7 +43,7 @@ public:
     //==============================================================================
     void initialise (const String&) override
     {
-        mainWindow = new MainWindow (getApplicationName());
+        mainWindow.reset (new MainWindow (getApplicationName()));
     }
 
     void shutdown() override
@@ -88,7 +88,7 @@ public:
     };
 
 private:
-    ScopedPointer<MainWindow> mainWindow;
+    std::unique_ptr<MainWindow> mainWindow;
 };
 
 //==============================================================================

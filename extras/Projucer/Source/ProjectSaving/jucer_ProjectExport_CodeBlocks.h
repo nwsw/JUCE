@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "jucer_ProjectExport_MSVC.h"
 
 //==============================================================================
 class CodeBlocksProjectExporter  : public ProjectExporter
@@ -63,15 +64,15 @@ public:
     }
 
     //==============================================================================
-    static CodeBlocksProjectExporter* createForSettings (Project& project, const ValueTree& settings)
+    static CodeBlocksProjectExporter* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
         // this will also import legacy jucer files where CodeBlocks only worked for Windows,
         // had valueTreetTypeName "CODEBLOCKS", and there was no OS distinction
-        if (settings.hasType (getValueTreeTypeName (windowsTarget)) || settings.hasType ("CODEBLOCKS"))
-            return new CodeBlocksProjectExporter (project, settings, windowsTarget);
+        if (settingsToUse.hasType (getValueTreeTypeName (windowsTarget)) || settingsToUse.hasType ("CODEBLOCKS"))
+            return new CodeBlocksProjectExporter (projectToUse, settingsToUse, windowsTarget);
 
-        if (settings.hasType (getValueTreeTypeName (linuxTarget)))
-            return new CodeBlocksProjectExporter (project, settings, linuxTarget);
+        if (settingsToUse.hasType (getValueTreeTypeName (linuxTarget)))
+            return new CodeBlocksProjectExporter (projectToUse, settingsToUse, linuxTarget);
 
         return nullptr;
     }
@@ -150,7 +151,7 @@ public:
         XmlElement xml ("CodeBlocks_project_file");
         addVersion (xml);
         createProject (*xml.createNewChildElement ("Project"));
-        writeXmlOrThrow (xml, cbpFile, "UTF-8", 10);
+        writeXmlOrThrow (xml, cbpFile, "UTF-8", 10, true);
     }
 
     //==============================================================================
@@ -180,8 +181,13 @@ public:
         jassert (targets.size() > 0);
     }
 
-    //==============================================================================
-    void initialiseDependencyPathValues() override  {}
+    void initialiseDependencyPathValues() override
+    {
+        auto targetOS = isWindows() ? TargetOS::windows : TargetOS::linux;
+
+        vstLegacyPathValueWrapper.init ({ settings, Ids::vstLegacyFolder, nullptr },
+                                        getAppSettings().getStoredPath (Ids::vstLegacyPath, targetOS), targetOS);
+    }
 
 private:
     ValueWithDefault targetPlatformValue;
@@ -203,6 +209,7 @@ private:
 
         void createConfigProperties (PropertyListBuilder& props) override
         {
+            addRecommendedLinuxCompilerWarningsProperty (props);
             addGCCOptimisationProperty (props);
 
             props.add (new ChoicePropertyComponent (architectureTypeValue, "Architecture",
@@ -235,7 +242,7 @@ private:
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& tree) const override
     {
-        return new CodeBlocksBuildConfiguration (project, tree, *this);
+        return *new CodeBlocksBuildConfiguration (project, tree, *this);
     }
 
     //==============================================================================
@@ -310,14 +317,17 @@ private:
     {
         auto result = linuxPackages;
 
-        static String guiExtrasModule ("juce_gui_extra");
-
-        if (project.getModules().isModuleEnabled (guiExtrasModule)
+        if (project.getEnabledModules().isModuleEnabled ("juce_gui_extra")
             && project.isConfigFlagEnabled ("JUCE_WEB_BROWSER", true))
         {
             result.add ("webkit2gtk-4.0");
             result.add ("gtk+-x11-3.0");
         }
+
+        if (project.getEnabledModules().isModuleEnabled ("juce_core")
+            && project.isConfigFlagEnabled ("JUCE_USE_CURL", true)
+            && ! project.isConfigFlagEnabled ("JUCE_LOAD_CURL_SYMBOLS_LAZILY", false))
+            result.add ("libcurl");
 
         result.removeDuplicates (false);
 
@@ -389,8 +399,12 @@ private:
     StringArray getCompilerFlags (const BuildConfiguration& config, CodeBlocksTarget& target) const
     {
         StringArray flags;
+
         if (auto* codeBlocksConfig = dynamic_cast<const CodeBlocksBuildConfiguration*> (&config))
             flags.add (codeBlocksConfig->getArchitectureTypeString());
+
+        for (auto& recommended : config.getRecommendedCompilerWarningFlags())
+            flags.add (recommended);
 
         flags.add ("-O" + config.getGCCOptimisationFlag());
 
@@ -418,7 +432,7 @@ private:
 
         if (config.exporter.isLinux())
         {
-            if (target.isDynamicLibrary() || getProject().getProjectType().isAudioPlugin())
+            if (target.isDynamicLibrary() || getProject().isAudioPluginProject())
                 flags.add ("-fPIC");
 
             auto packages = getPackages();
@@ -481,8 +495,8 @@ private:
     {
         auto librarySearchPaths = config.getLibrarySearchPaths();
 
-        if (getProject().getProjectType().isAudioPlugin() && target.type != ProjectType::Target::SharedCodeTarget)
-            librarySearchPaths.add (RelativePath (getSharedCodePath (config), RelativePath::buildTargetFolder).getParentDirectory().toUnixStyle());
+        if (getProject().isAudioPluginProject() && target.type != ProjectType::Target::SharedCodeTarget)
+            librarySearchPaths.add (RelativePath (getSharedCodePath (config), RelativePath::buildTargetFolder).getParentDirectory().toUnixStyle().quoted());
 
         return librarySearchPaths;
     }
@@ -587,7 +601,7 @@ private:
         xml.createNewChildElement ("Option")->setAttribute ("type", getTypeIndex (target.type));
         xml.createNewChildElement ("Option")->setAttribute ("compiler", "gcc");
 
-        if (getProject().getProjectType().isAudioPlugin() && target.type != ProjectType::Target::SharedCodeTarget)
+        if (getProject().isAudioPluginProject() && target.type != ProjectType::Target::SharedCodeTarget)
             xml.createNewChildElement ("Option")->setAttribute ("external_deps", getSharedCodePath (config));
 
         {
@@ -621,8 +635,8 @@ private:
         {
             auto* linker = xml.createNewChildElement ("Linker");
 
-            if (getProject().getProjectType().isAudioPlugin() && target.type != ProjectType::Target::SharedCodeTarget)
-                setAddOption (*linker, "option", getSharedCodePath (config));
+            if (getProject().isAudioPluginProject() && target.type != ProjectType::Target::SharedCodeTarget)
+                setAddOption (*linker, "option", getSharedCodePath (config).quoted());
 
             for (auto& flag : getLinkerFlags (config, target))
                 setAddOption (*linker, "option", flag);
@@ -733,7 +747,7 @@ private:
     // the single target
     CodeBlocksTarget& getMainTarget() const
     {
-        if (getProject().getProjectType().isAudioPlugin())
+        if (getProject().isAudioPluginProject())
             return getTargetWithType (ProjectType::Target::SharedCodeTarget);
 
         for (auto* target : targets)
@@ -747,7 +761,7 @@ private:
 
     CodeBlocksTarget& getTargetForProjectItem (const Project::Item& projectItem) const
     {
-        if (getProject().getProjectType().isAudioPlugin())
+        if (getProject().isAudioPluginProject())
         {
             if (! projectItem.shouldBeCompiled())
                 return getTargetWithType (ProjectType::Target::SharedCodeTarget);
@@ -765,7 +779,7 @@ private:
             for (int i = 0; i < projectItem.getNumChildren(); ++i)
                 addCompileUnits (projectItem.getChild(i), xml);
         }
-        else if (projectItem.shouldBeAddedToTargetProject())
+        else if (projectItem.shouldBeAddedToTargetProject() && projectItem.shouldBeAddedToTargetExporter (*this))
         {
             RelativePath file (projectItem.getFile(), getTargetFolder(), RelativePath::buildTargetFolder);
 
@@ -778,7 +792,20 @@ private:
                 unit->createNewChildElement ("Option")->setAttribute ("target", targetName);
             }
 
-            if (! projectItem.shouldBeCompiled())
+            if (projectItem.shouldBeCompiled())
+            {
+                auto extraCompilerFlags = compilerFlagSchemesMap[projectItem.getCompilerFlagSchemeString()].get().toString();
+
+                if (extraCompilerFlags.isNotEmpty())
+                {
+                    auto* optionElement = unit->createNewChildElement ("Option");
+
+                    optionElement->setAttribute ("compiler",     "gcc");
+                    optionElement->setAttribute ("use",          1);
+                    optionElement->setAttribute ("buildCommand", "$compiler $options " + extraCompilerFlags + " $includes -c $file  -o $object");
+                }
+            }
+            else
             {
                 unit->createNewChildElement ("Option")->setAttribute ("compile", 0);
                 unit->createNewChildElement ("Option")->setAttribute ("link", 0);
@@ -786,10 +813,27 @@ private:
         }
     }
 
+    bool hasResourceFile() const
+    {
+        return ! projectType.isStaticLibrary();
+    }
+
     void addCompileUnits (XmlElement& xml) const
     {
         for (int i = 0; i < getAllGroups().size(); ++i)
             addCompileUnits (getAllGroups().getReference(i), xml);
+
+        if (hasResourceFile())
+        {
+            auto iconFile = getTargetFolder().getChildFile ("icon.ico");
+            MSVCProjectExporterBase::writeIconFile (*this, iconFile);
+            auto rcFile = getTargetFolder().getChildFile ("resources.rc");
+            MSVCProjectExporterBase::createRCFile (project, iconFile, rcFile);
+
+            auto* unit = xml.createNewChildElement ("Unit");
+            unit->setAttribute ("filename", rcFile.getFileName());
+            unit->createNewChildElement ("Option")->setAttribute ("compilerVar", "WINDRES");
+        }
     }
 
     void createProject (XmlElement& xml) const

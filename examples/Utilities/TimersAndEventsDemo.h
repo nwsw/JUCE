@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        TimersAndEventsDemo
@@ -132,7 +134,7 @@ private:
         {
             stopFlashing();
             sendChangeMessage();
-            // Once we've finsihed flashing send a change message to trigger the next component to flash
+            // Once we've finished flashing send a change message to trigger the next component to flash
         }
 
         repaint();
@@ -171,7 +173,7 @@ public:
         addAndMakeVisible (randomColourButton);
         randomColourButton.onClick = [this] { randomColourButtonClicked(); };
 
-        // lay out our components in a psudo random grid
+        // lay out our components in a pseudo random grid
         Rectangle<int> area (0, 100, 150, 150);
 
         for (auto* comp : flashingComponents)
@@ -194,7 +196,7 @@ public:
         setSize (600, 600);
     }
 
-    ~TimersAndEventsDemo()
+    ~TimersAndEventsDemo() override
     {
         for (auto* fc : flashingComponents)
             fc->removeChangeListener (this);

@@ -38,7 +38,7 @@ public:
         item.state.addListener (this);
     }
 
-    ~FileTreeItemBase()
+    ~FileTreeItemBase() override
     {
         item.state.removeListener (this);
     }
@@ -245,7 +245,6 @@ public:
     void valueTreeChildAdded (ValueTree& parentTree, ValueTree&) override         { treeChildrenChanged (parentTree); }
     void valueTreeChildRemoved (ValueTree& parentTree, ValueTree&, int) override  { treeChildrenChanged (parentTree); }
     void valueTreeChildOrderChanged (ValueTree& parentTree, int, int) override    { treeChildrenChanged (parentTree); }
-    void valueTreeParentChanged (ValueTree&) override {}
 
     //==============================================================================
     bool mightContainSubItems() override                { return item.getNumChildren() > 0; }
@@ -303,7 +302,7 @@ public:
         if (selectedNodes.size() > 0)
         {
             auto* tree = getOwnerView();
-            ScopedPointer<XmlElement> oldOpenness (tree->getOpennessState (false));
+            std::unique_ptr<XmlElement> oldOpenness (tree->getOpennessState (false));
 
             moveSelectedItemsTo (selectedNodes, insertIndex);
 
@@ -463,6 +462,21 @@ public:
     String getDisplayName() const override
     {
         return getFile().getFileName();
+    }
+
+    void paintItem (Graphics& g, int width, int height) override
+    {
+        JucerTreeViewBase::paintItem (g, width, height);
+
+        if (item.needsSaving())
+        {
+            auto bounds = g.getClipBounds().withY (0).withHeight (height);
+
+            g.setFont (getFont());
+            g.setColour (getContentColour (false));
+
+            g.drawFittedText ("*", bounds.removeFromLeft (height), Justification::centred, 1);
+        }
     }
 
     static File findCorrespondingHeaderOrCpp (const File& f)
@@ -704,22 +718,22 @@ public:
                 openOrCloseAllSubGroups (*sub, false);
     }
 
-    static void openOrCloseAllSubGroups (TreeViewItem& item, bool shouldOpen)
+    static void openOrCloseAllSubGroups (TreeViewItem& treeItem, bool shouldOpen)
     {
-        item.setOpen (shouldOpen);
+        treeItem.setOpen (shouldOpen);
 
-        for (auto i = item.getNumSubItems(); --i >= 0;)
-            if (auto* sub = item.getSubItem (i))
+        for (auto i = treeItem.getNumSubItems(); --i >= 0;)
+            if (auto* sub = treeItem.getSubItem (i))
                 openOrCloseAllSubGroups (*sub, shouldOpen);
     }
 
-    static void setFilesToCompile (Project::Item item, const bool shouldCompile)
+    static void setFilesToCompile (Project::Item projectItem, const bool shouldCompile)
     {
-        if (item.isFile())
-            item.getShouldCompileValue() = shouldCompile;
+        if (projectItem.isFile() && (projectItem.getFile().hasFileExtension (fileTypesToCompileByDefault)))
+            projectItem.getShouldCompileValue() = shouldCompile;
 
-        for (auto i = item.getNumChildren(); --i >= 0;)
-            setFilesToCompile (item.getChild (i), shouldCompile);
+        for (auto i = projectItem.getNumChildren(); --i >= 0;)
+            setFilesToCompile (projectItem.getChild (i), shouldCompile);
     }
 
     void showPopupMenu() override

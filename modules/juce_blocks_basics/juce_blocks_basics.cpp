@@ -22,20 +22,28 @@
 
 #include "juce_blocks_basics.h"
 
-#if (! defined (JUCE_STDLIB_HAS_STD_FUNCTION_SUPPORT)) || (! defined (JUCE_HAS_CONSTEXPR))
+#if ! JUCE_HAS_CONSTEXPR
  #ifndef JUCE_DEMO_RUNNER
-  #error "juce_blocks_basics module requires your compiler to have a newer version of the standard library"
+  #error "The juce_blocks_basics module requires a compiler that supports constexpr"
  #endif
 #else
+
+#include <regex>
+
+namespace juce
+{
+ #include "littlefoot/juce_LittleFootRemoteHeap.h"
+}
 
 #include "protocol/juce_BitPackingUtilities.h"
 #include "protocol/juce_BlocksProtocolDefinitions.h"
 #include "protocol/juce_HostPacketDecoder.h"
 #include "protocol/juce_HostPacketBuilder.h"
-#include "protocol/juce_BlockModels.h"
-
 #include "blocks/juce_BlockConfigManager.h"
+#include "protocol/juce_BlockModels.h"
 #include "blocks/juce_Block.cpp"
+#include "blocks/juce_BlocksVersion.cpp"
+#include "topology/juce_BlockGraph.cpp"
 #include "topology/juce_PhysicalTopologySource.cpp"
 #include "topology/juce_RuleBasedTopologySource.cpp"
 #include "visualisers/juce_DrumPadLEDProgram.cpp"

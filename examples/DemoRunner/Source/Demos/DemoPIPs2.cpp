@@ -24,7 +24,7 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "../../../Assets/DemoUtilities.h"
 #include "JUCEDemos.h"
 
@@ -34,7 +34,7 @@
 #include "../../../GUI/AnimationAppDemo.h"
 #include "../../../GUI/AnimationDemo.h"
 #include "../../../GUI/BouncingBallWavetableDemo.h"
-#if JUCE_MAC || JUCE_WINDOWS
+#if JUCE_USE_CAMERA && ! JUCE_LINUX
  #include "../../../GUI/CameraDemo.h"
 #endif
 #if ! JUCE_ANDROID
@@ -43,12 +43,10 @@
 #include "../../../GUI/ComponentDemo.h"
 #include "../../../GUI/ComponentTransformsDemo.h"
 #include "../../../GUI/DialogsDemo.h"
-#if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS
- #include "../../../GUI/FlexBoxDemo.h"
-#endif
+#include "../../../GUI/FlexBoxDemo.h"
 #include "../../../GUI/FontsDemo.h"
 #include "../../../GUI/GraphicsDemo.h"
-#if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS && JUCE_HAS_CONSTEXPR
+#if JUCE_HAS_CONSTEXPR
  #include "../../../GUI/GridDemo.h"
 #endif
 #include "../../../GUI/ImagesDemo.h"
@@ -63,7 +61,7 @@
  #include "../../../GUI/OpenGLDemo2D.h"
 #endif
 #include "../../../GUI/PropertiesDemo.h"
-#if JUCE_MAC || JUCE_WINDOWS
+#if ! JUCE_LINUX
  #include "../../../GUI/VideoDemo.h"
 #endif
 #include "../../../GUI/WebBrowserDemo.h"
@@ -72,44 +70,42 @@
 
 void registerDemos_Two() noexcept
 {
-    REGISTER_DEMO (AnimationAppDemo,          GUI,       false)
-    REGISTER_DEMO (AnimationDemo,             GUI,       false)
-    REGISTER_DEMO (BouncingBallWavetableDemo, GUI,       false)
-   #if JUCE_MAC || JUCE_WINDOWS
-    REGISTER_DEMO (CameraDemo,                GUI,       true)
+    REGISTER_DEMO (AnimationAppDemo,          GUI, false)
+    REGISTER_DEMO (AnimationDemo,             GUI, false)
+    REGISTER_DEMO (BouncingBallWavetableDemo, GUI, false)
+   #if JUCE_USE_CAMERA && ! JUCE_LINUX
+    REGISTER_DEMO (CameraDemo,                GUI, true)
    #endif
    #if ! JUCE_ANDROID
-    REGISTER_DEMO (CodeEditorDemo,            GUI,       false)
+    REGISTER_DEMO (CodeEditorDemo,            GUI, false)
    #endif
-    REGISTER_DEMO (ComponentDemo,             GUI,       false)
-    REGISTER_DEMO (ComponentTransformsDemo,   GUI,       false)
-    REGISTER_DEMO (DialogsDemo,               GUI,       false)
-   #if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS
-    REGISTER_DEMO (FlexBoxDemo,               GUI,       false)
+    REGISTER_DEMO (ComponentDemo,             GUI, false)
+    REGISTER_DEMO (ComponentTransformsDemo,   GUI, false)
+    REGISTER_DEMO (DialogsDemo,               GUI, false)
+    REGISTER_DEMO (FlexBoxDemo,               GUI, false)
+    REGISTER_DEMO (FontsDemo,                 GUI, false)
+    REGISTER_DEMO (GraphicsDemo,              GUI, false)
+   #if JUCE_HAS_CONSTEXPR
+    REGISTER_DEMO (GridDemo,                  GUI, false)
    #endif
-    REGISTER_DEMO (FontsDemo,                 GUI,       false)
-    REGISTER_DEMO (GraphicsDemo,              GUI,       false)
-   #if JUCE_COMPILER_SUPPORTS_INITIALIZER_LISTS && JUCE_HAS_CONSTEXPR
-    REGISTER_DEMO (GridDemo,                  GUI,       false)
-   #endif
-    REGISTER_DEMO (ImagesDemo,                GUI,       false)
-    REGISTER_DEMO (KeyMappingsDemo,           GUI,       false)
-    REGISTER_DEMO (LookAndFeelDemo,           GUI,       false)
-    REGISTER_DEMO (MDIDemo,                   GUI,       false)
-    REGISTER_DEMO (MenusDemo,                 GUI,       false)
-    REGISTER_DEMO (MultiTouchDemo,            GUI,       false)
+    REGISTER_DEMO (ImagesDemo,                GUI, false)
+    REGISTER_DEMO (KeyMappingsDemo,           GUI, false)
+    REGISTER_DEMO (LookAndFeelDemo,           GUI, false)
+    REGISTER_DEMO (MDIDemo,                   GUI, false)
+    REGISTER_DEMO (MenusDemo,                 GUI, false)
+    REGISTER_DEMO (MultiTouchDemo,            GUI, false)
    #if JUCE_OPENGL
-    REGISTER_DEMO (OpenGLAppDemo,             GUI,       true)
-    REGISTER_DEMO (OpenGLDemo2D,              GUI,       true)
-    REGISTER_DEMO_WITH_FILENAME (OpenGLDemoClasses::OpenGLDemo, GUI, OpenGLDemo, true)
+    REGISTER_DEMO (OpenGLAppDemo,             GUI, true)
+    REGISTER_DEMO (OpenGLDemo2D,              GUI, true)
+    REGISTER_DEMO (OpenGLDemo,                GUI, true)
    #endif
-    REGISTER_DEMO (PropertiesDemo,            GUI,       false)
-   #if JUCE_MAC || JUCE_WINDOWS
-    REGISTER_DEMO (VideoDemo,                 GUI,       true)
+    REGISTER_DEMO (PropertiesDemo,            GUI, false)
+   #if ! JUCE_LINUX
+    REGISTER_DEMO (VideoDemo,                 GUI, true)
    #endif
-    REGISTER_DEMO (WebBrowserDemo,            GUI,       true)
-    REGISTER_DEMO (WidgetsDemo,               GUI,       false)
-    REGISTER_DEMO (WindowsDemo,               GUI,       false)
+    REGISTER_DEMO (WebBrowserDemo,            GUI, true)
+    REGISTER_DEMO (WidgetsDemo,               GUI, false)
+    REGISTER_DEMO (WindowsDemo,               GUI, false)
 }
 
 CodeEditorComponent::ColourScheme getDarkColourScheme()

@@ -50,29 +50,29 @@ MainWindow::MainWindow()
     setResizable (true, false);
     centreWithSize (800, 600);
 
-    ApplicationCommandManager& commandManager = ProjucerApplication::getCommandManager();
+    auto& commandManager = ProjucerApplication::getCommandManager();
 
-    // Register all the app commands..
-    commandManager.registerAllCommandsForTarget (this);
-    commandManager.registerAllCommandsForTarget (getProjectContentComponent());
+    auto registerAllAppCommands = [&]
+    {
+        commandManager.registerAllCommandsForTarget (this);
+        commandManager.registerAllCommandsForTarget (getProjectContentComponent());
+    };
 
-    // update key mappings..
+    auto updateAppKeyMappings = [&]
     {
         commandManager.getKeyMappings()->resetToDefaultMappings();
 
-        ScopedPointer<XmlElement> keys (getGlobalProperties().getXmlValue ("keyMappings"));
-
-        if (keys != nullptr)
+        if (auto keys = getGlobalProperties().getXmlValue ("keyMappings"))
             commandManager.getKeyMappings()->restoreFromXml (*keys);
 
         addKeyListener (commandManager.getKeyMappings());
-    }
+    };
 
-    // don't want the window to take focus when the title-bar is clicked..
+    registerAllAppCommands();
+    updateAppKeyMappings();
+
     setWantsKeyboardFocus (false);
-
     getLookAndFeel().setColour (ColourSelector::backgroundColourId, Colours::transparentBlack);
-
     projectNameValue.addListener (this);
 
     setResizeLimits (600, 500, 32000, 32000);
@@ -85,8 +85,6 @@ MainWindow::~MainWindow()
    #endif
 
     removeKeyListener (ProjucerApplication::getCommandManager().getKeyMappings());
-
-    // save the current size and position to our settings file..
     getGlobalProperties().setValue ("lastMainWindowPos", getWindowStateAsString());
 
     clearContentComponent();
@@ -99,7 +97,6 @@ void MainWindow::createProjectContentCompIfNeeded()
     {
         clearContentComponent();
         setContentOwned (new ProjectContentComponent(), false);
-        jassert (getProjectContentComponent() != nullptr);
     }
 }
 
@@ -121,12 +118,10 @@ void MainWindow::setTitleBarIcon()
 
 void MainWindow::makeVisible()
 {
-    restoreWindowPosition();
     setVisible (true);
-    addToDesktop();  // (must add before restoring size so that fullscreen will work)
+    addToDesktop();
     restoreWindowPosition();
     setTitleBarIcon();
-
     getContentComponent()->grabKeyboardFocus();
 }
 
@@ -140,14 +135,12 @@ void MainWindow::closeButtonPressed()
     ProjucerApplication::getApp().mainWindowList.closeWindow (this);
 }
 
-bool MainWindow::closeProject (Project* project, bool askUserToSave)
+bool MainWindow::closeCurrentProject (bool askUserToSave)
 {
-    jassert (project == currentProject && project != nullptr);
-
-    if (project == nullptr)
+    if (currentProject == nullptr)
         return true;
 
-    project->getStoredProperties().setValue (getProjectWindowPosName(), getWindowStateAsString());
+    currentProject->getStoredProperties().setValue (getProjectWindowPosName(), getWindowStateAsString());
 
     if (auto* pcc = getProjectContentComponent())
     {
@@ -156,28 +149,24 @@ bool MainWindow::closeProject (Project* project, bool askUserToSave)
         pcc->hideEditor();
     }
 
-    if (! ProjucerApplication::getApp().openDocumentManager.closeAllDocumentsUsingProject (*project, askUserToSave))
-        return false;
-
-    if (! askUserToSave || (project->saveIfNeededAndUserAgrees() == FileBasedDocument::savedOk))
+    if (ProjucerApplication::getApp().openDocumentManager
+         .closeAllDocumentsUsingProject (*currentProject, askUserToSave))
     {
-        setProject (nullptr);
-        return true;
+        if (! askUserToSave || (currentProject->saveIfNeededAndUserAgrees() == FileBasedDocument::savedOk))
+        {
+            setProject (nullptr);
+            return true;
+        }
     }
 
     return false;
-}
-
-bool MainWindow::closeCurrentProject()
-{
-    return currentProject == nullptr || closeProject (currentProject.get());
 }
 
 void MainWindow::moveProject (File newProjectFileToOpen)
 {
     auto openInIDE = currentProject->shouldOpenInIDEAfterSaving();
 
-    closeProject (currentProject, false);
+    closeCurrentProject (false);
     openFile (newProjectFileToOpen);
 
     if (currentProject != nullptr)
@@ -188,21 +177,25 @@ void MainWindow::moveProject (File newProjectFileToOpen)
     }
 }
 
-void MainWindow::setProject (Project* newProject)
+void MainWindow::setProject (std::unique_ptr<Project> newProject)
 {
-    createProjectContentCompIfNeeded();
-    getProjectContentComponent()->setProject (newProject);
-    currentProject.reset (newProject);
-
-    if (currentProject != nullptr)
-        projectNameValue.referTo (currentProject->getProjectValue (Ids::name));
-    else
+    if (newProject == nullptr)
+    {
+        getProjectContentComponent()->setProject (nullptr);
         projectNameValue.referTo (Value());
 
-    if (newProject != nullptr)
+        currentProject.reset();
+    }
+    else
     {
+        currentProject = std::move (newProject);
+
+        createProjectContentCompIfNeeded();
+        getProjectContentComponent()->setProject (currentProject.get());
+        projectNameValue.referTo (currentProject->getProjectValue (Ids::name));
+
         if (auto* peer = getPeer())
-            peer->setRepresentedFile (newProject->getFile());
+            peer->setRepresentedFile (currentProject->getFile());
     }
 
     ProjucerApplication::getCommandManager().commandStatusChanged();
@@ -234,20 +227,16 @@ bool MainWindow::openFile (const File& file)
 
     if (file.hasFileExtension (Project::projectFileExtension))
     {
-        ScopedPointer<Project> newDoc (new Project (file));
-
+        auto newDoc = std::make_unique<Project> (file);
         auto result = newDoc->loadFrom (file, true);
 
-        if (result.wasOk() && closeCurrentProject())
+        if (result.wasOk() && closeCurrentProject (true))
         {
-            setProject (newDoc.get());
-            newDoc.release()->setChangedFlag (false);
+            setProject (std::move (newDoc));
+            currentProject->setChangedFlag (false);
 
-            jassert (getProjectContentComponent() != nullptr);
             getProjectContentComponent()->reloadLastOpenDocuments();
-
-            if (auto* p = getProject())
-                p->updateDeprecatedProjectSettingsInteractively();
+            currentProject->updateDeprecatedProjectSettingsInteractively();
 
             return true;
         }
@@ -608,7 +597,7 @@ bool MainWindowList::askAllWindowsToClose()
 
     while (windows.size() > 0)
     {
-        if (! windows[0]->closeCurrentProject())
+        if (! windows[0]->closeCurrentProject (true))
             return false;
 
         windows.remove (0);
@@ -619,7 +608,7 @@ bool MainWindowList::askAllWindowsToClose()
 
 void MainWindowList::createWindowIfNoneAreOpen()
 {
-    if (windows.size() == 0)
+    if (windows.isEmpty())
         createNewMainWindow()->showStartPage();
 }
 
@@ -628,14 +617,14 @@ void MainWindowList::closeWindow (MainWindow* w)
     jassert (windows.contains (w));
 
    #if ! JUCE_MAC
-    if (windows.size() == 1)
+    if (windows.size() == 1 && ! isInReopenLastProjects)
     {
         JUCEApplicationBase::getInstance()->systemRequestedQuit();
     }
     else
    #endif
     {
-        if (w->closeCurrentProject())
+        if (w->closeCurrentProject (true))
         {
             windows.removeObject (w);
             saveCurrentlyOpenProjectList();
@@ -688,25 +677,24 @@ bool MainWindowList::openFile (const File& file, bool openInBackground)
 
     if (file.hasFileExtension (Project::projectFileExtension))
     {
-        auto previousFrontWindow = getFrontmostWindow();
+        WeakReference<Component> previousFrontWindow (getFrontmostWindow());
 
         auto* w = getOrCreateEmptyWindow();
-        bool ok = w->openFile (file);
+        jassert (w != nullptr);
 
-        if (ok)
+        if (w->openFile (file))
         {
             w->makeVisible();
-            avoidSuperimposedWindows (w);
-        }
-        else
-        {
-            closeWindow (w);
+            checkWindowBounds (*w);
+
+            if (openInBackground && previousFrontWindow != nullptr)
+                previousFrontWindow->toFront (true);
+
+            return true;
         }
 
-        if (openInBackground && (previousFrontWindow != nullptr))
-            previousFrontWindow->toFront (true);
-
-        return ok;
+        closeWindow (w);
+        return false;
     }
 
     if (getFrontmostWindow()->tryToOpenPIP (file))
@@ -720,11 +708,8 @@ bool MainWindowList::openFile (const File& file, bool openInBackground)
 
 MainWindow* MainWindowList::createNewMainWindow()
 {
-    auto w = new MainWindow();
-    windows.add (w);
-    w->restoreWindowPosition();
-    avoidSuperimposedWindows (w);
-    return w;
+    windows.add (new MainWindow());
+    return windows.getLast();
 }
 
 MainWindow* MainWindowList::getFrontmostWindow (bool createIfNotFound)
@@ -734,8 +719,11 @@ MainWindow* MainWindowList::getFrontmostWindow (bool createIfNotFound)
         if (createIfNotFound)
         {
             auto* w = createNewMainWindow();
-            avoidSuperimposedWindows (w);
+            jassert (w != nullptr);
+
             w->makeVisible();
+            checkWindowBounds (*w);
+
             return w;
         }
 
@@ -786,29 +774,52 @@ MainWindow* MainWindowList::getMainWindowForFile (const File& file)
     return nullptr;
 }
 
-void MainWindowList::avoidSuperimposedWindows (MainWindow* const mw)
+void MainWindowList::checkWindowBounds (MainWindow& windowToCheck)
 {
-    for (int i = windows.size(); --i >= 0;)
+    auto avoidSuperimposedWindows = [&]
     {
-        auto* other = windows.getUnchecked(i);
-
-        auto b1 = mw->getBounds();
-        auto b2 = other->getBounds();
-
-        if (mw != other
-             && std::abs (b1.getX() - b2.getX()) < 3
-             && std::abs (b1.getY() - b2.getY()) < 3
-             && std::abs (b1.getRight()  - b2.getRight()) < 3
-             && std::abs (b1.getBottom() - b2.getBottom()) < 3)
+        for (auto* otherWindow : windows)
         {
-            int dx = 40, dy = 30;
+            if (otherWindow == nullptr || otherWindow == &windowToCheck)
+                continue;
 
-            if (b1.getCentreX() >= mw->getScreenBounds().getCentreX())   dx = -dx;
-            if (b1.getCentreY() >= mw->getScreenBounds().getCentreY())   dy = -dy;
+            auto boundsToCheck = windowToCheck.getScreenBounds();
+            auto otherBounds = otherWindow->getScreenBounds();
 
-            mw->setBounds (b1.translated (dx, dy));
+            if (std::abs (boundsToCheck.getX() - otherBounds.getX()) < 3
+                 && std::abs (boundsToCheck.getY() - otherBounds.getY()) < 3
+                 && std::abs (boundsToCheck.getRight()  - otherBounds.getRight()) < 3
+                 && std::abs (boundsToCheck.getBottom() - otherBounds.getBottom()) < 3)
+            {
+                int dx = 40, dy = 30;
+
+                if (otherBounds.getCentreX() >= boundsToCheck.getCentreX())  dx = -dx;
+                if (otherBounds.getCentreY() >= boundsToCheck.getCentreY())  dy = -dy;
+
+                windowToCheck.setBounds (boundsToCheck.translated (dx, dy));
+            }
         }
-    }
+    };
+
+    auto ensureWindowIsFullyOnscreen = [&]
+    {
+        auto windowBounds = windowToCheck.getScreenBounds();
+        auto screenLimits = Desktop::getInstance().getDisplays().findDisplayForRect (windowBounds).userArea;
+
+        if (auto* peer = windowToCheck.getPeer())
+            peer->getFrameSize().subtractFrom (screenLimits);
+
+        auto constrainedX = jlimit (screenLimits.getX(), jmax (screenLimits.getX(), screenLimits.getRight()  - windowBounds.getWidth()),  windowBounds.getX());
+        auto constrainedY = jlimit (screenLimits.getY(), jmax (screenLimits.getY(), screenLimits.getBottom() - windowBounds.getHeight()), windowBounds.getY());
+
+        Point<int> constrainedTopLeft (constrainedX, constrainedY);
+
+        if (windowBounds.getPosition() != constrainedTopLeft)
+            windowToCheck.setTopLeftPosition (constrainedTopLeft);
+    };
+
+    avoidSuperimposedWindows();
+    ensureWindowIsFullyOnscreen();
 }
 
 void MainWindowList::saveCurrentlyOpenProjectList()
@@ -829,8 +840,11 @@ void MainWindowList::saveCurrentlyOpenProjectList()
 
 void MainWindowList::reopenLastProjects()
 {
+    const ScopedValueSetter<bool> setter (isInReopenLastProjects, true);
+
     for (auto& p : getAppSettings().getLastProjects())
-        openFile (p, true);
+        if (p.existsAsFile())
+            openFile (p, true);
 }
 
 void MainWindowList::sendLookAndFeelChange()

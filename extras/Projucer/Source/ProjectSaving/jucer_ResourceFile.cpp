@@ -96,28 +96,23 @@ int64 ResourceFile::getTotalDataSize() const
     return total;
 }
 
-static String getComment()
+static void writeComment (MemoryOutputStream& mo)
 {
-    String comment;
-    comment << newLine << newLine
-            << "   This is an auto-generated file: Any edits you make may be overwritten!" << newLine
-            << newLine
-            << "*/" << newLine
-            << newLine;
-
-    return comment;
+    mo << newLine << newLine
+       << "   This is an auto-generated file: Any edits you make may be overwritten!" << newLine
+       << newLine
+       << "*/" << newLine
+       << newLine;
 }
 
 Result ResourceFile::writeHeader (MemoryOutputStream& header)
 {
-    header << "/* ========================================================================================="
-           << getComment()
-           << "#pragma once" << newLine
+    header << "/* =========================================================================================";
+    writeComment (header);
+    header << "#pragma once" << newLine
            << newLine
            << "namespace " << className << newLine
            << "{" << newLine;
-
-    bool containsAnyImages = false;
 
     for (int i = 0; i < files.size(); ++i)
     {
@@ -134,9 +129,6 @@ Result ResourceFile::writeHeader (MemoryOutputStream& header)
 
         if (fileStream.openedOk())
         {
-            containsAnyImages = containsAnyImages
-                                 || (ImageFileFormat::findImageFormatForStream (fileStream) != nullptr);
-
             header << "    extern const char*   " << variableName << ";" << newLine;
             header << "    const int            " << variableName << "Size = " << (int) dataSize << ";" << newLine << newLine;
         }
@@ -153,11 +145,11 @@ Result ResourceFile::writeHeader (MemoryOutputStream& header)
            << newLine
            << "    // If you provide the name of one of the binary resource variables above, this function will"             << newLine
            << "    // return the corresponding data and its size (or a null pointer if the name isn't found)."               << newLine
-           << "    const char* getNamedResource (const char* resourceNameUTF8, int& dataSizeInBytes) noexcept;"              << newLine
+           << "    const char* getNamedResource (const char* resourceNameUTF8, int& dataSizeInBytes);"                       << newLine
            << newLine
            << "    // If you provide the name of one of the binary resource variables above, this function will"             << newLine
            << "    // return the corresponding original, non-mangled filename (or a null pointer if the name isn't found)."  << newLine
-           << "    const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8) noexcept;"                    << newLine
+           << "    const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8);"                             << newLine
            << "}" << newLine;
 
     return Result::ok();
@@ -167,12 +159,10 @@ Result ResourceFile::writeCpp (MemoryOutputStream& cpp, const File& headerFile, 
 {
     bool isFirstFile = (i == 0);
 
-    cpp << "/* ==================================== " << resourceFileIdentifierString << " ===================================="
-        << getComment()
-        << "namespace " << className << newLine
+    cpp << "/* ==================================== " << resourceFileIdentifierString << " ====================================";
+    writeComment (cpp);
+    cpp << "namespace " << className << newLine
         << "{" << newLine;
-
-    bool containsAnyImages = false;
 
     while (i < files.size())
     {
@@ -183,9 +173,6 @@ Result ResourceFile::writeCpp (MemoryOutputStream& cpp, const File& headerFile, 
 
         if (fileStream.openedOk())
         {
-            containsAnyImages = containsAnyImages
-                                 || (ImageFileFormat::findImageFormatForStream (fileStream) != nullptr);
-
             auto tempVariable = "temp_binary_data_" + String (i);
 
             cpp  << newLine << "//================== " << file.getFileName() << " ==================" << newLine
@@ -222,7 +209,7 @@ Result ResourceFile::writeCpp (MemoryOutputStream& cpp, const File& headerFile, 
 
         cpp << newLine
             << newLine
-            << "const char* getNamedResource (const char* resourceNameUTF8, int& numBytes) noexcept" << newLine
+            << "const char* getNamedResource (const char* resourceNameUTF8, int& numBytes)" << newLine
             << "{" << newLine;
 
         StringArray returnCodes;
@@ -255,7 +242,7 @@ Result ResourceFile::writeCpp (MemoryOutputStream& cpp, const File& headerFile, 
 
         cpp << "};" << newLine << newLine;
 
-        cpp << "const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8) noexcept"                << newLine
+        cpp << "const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8)"                         << newLine
             << "{"                                                                                                   << newLine
             << "    for (unsigned int i = 0; i < (sizeof (namedResourceList) / sizeof (namedResourceList[0])); ++i)" << newLine
             << "    {"                                                                                               << newLine
@@ -275,10 +262,14 @@ Result ResourceFile::writeCpp (MemoryOutputStream& cpp, const File& headerFile, 
 
 Result ResourceFile::write (Array<File>& filesCreated, const int maxFileSize)
 {
+    auto projectLineFeed = project.getProjectLineFeed();
+
     auto headerFile = project.getBinaryDataHeaderFile();
 
     {
         MemoryOutputStream mo;
+        mo.setNewLineString (projectLineFeed);
+
         auto r = writeHeader (mo);
 
         if (r.failed())
@@ -298,6 +289,7 @@ Result ResourceFile::write (Array<File>& filesCreated, const int maxFileSize)
         auto cpp = project.getBinaryDataCppFile (fileIndex);
 
         MemoryOutputStream mo;
+        mo.setNewLineString (projectLineFeed);
 
         auto r = writeCpp (mo, headerFile, i, maxFileSize);
 

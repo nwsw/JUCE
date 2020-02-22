@@ -37,7 +37,7 @@ struct ProjectTreeItemBase  : public JucerTreeViewBase,
     {
         content->setComponentID (getUniqueName());
 
-        ScopedPointer<Component> comp (content);
+        std::unique_ptr<Component> comp (content);
 
         if (ProjectContentComponent* pcc = getProjectContentComponent())
             pcc->setEditorComponent (comp.release(), nullptr);
@@ -65,12 +65,6 @@ struct ProjectTreeItemBase  : public JucerTreeViewBase,
         if (isNowOpen)
            refreshSubItems();
     }
-
-    void valueTreePropertyChanged (ValueTree&, const Identifier&) override {}
-    void valueTreeChildAdded (ValueTree&, ValueTree&) override {}
-    void valueTreeChildRemoved (ValueTree&, ValueTree&, int) override {}
-    void valueTreeChildOrderChanged (ValueTree&, int, int) override {}
-    void valueTreeParentChanged (ValueTree&) override {}
 
     virtual bool isProjectSettings() const          { return false; }
     virtual bool isModulesList() const              { return false; }

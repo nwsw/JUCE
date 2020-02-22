@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        XMLandJSONDemo
@@ -276,7 +278,7 @@ public:
         setSize (500, 500);
     }
 
-    ~XMLandJSONDemo()
+    ~XMLandJSONDemo() override
     {
         resultsTree.setRootItem (nullptr);
     }
@@ -303,16 +305,16 @@ private:
     CodeEditorComponent codeDocumentComponent  { codeDocument, nullptr };
     TreeView resultsTree;
 
-    ScopedPointer<TreeViewItem> rootItem;
-    ScopedPointer<XmlElement> parsedXml;
+    std::unique_ptr<TreeViewItem> rootItem;
+    std::unique_ptr<XmlElement> parsedXml;
     TextEditor errorMessage;
 
     void rebuildTree()
     {
-        ScopedPointer<XmlElement> openness;
+        std::unique_ptr<XmlElement> openness;
 
         if (rootItem.get() != nullptr)
-            openness.reset (rootItem->getOpennessState());
+            openness = rootItem->getOpennessState();
 
         createNewRootNode();
 
@@ -343,13 +345,13 @@ private:
         resultsTree.setRootItem (rootItem.get());
     }
 
-    /** Parses the editors contects as XML. */
+    /** Parses the editor's contents as XML. */
     TreeViewItem* rebuildXml()
     {
         parsedXml.reset();
 
         XmlDocument doc (codeDocument.getAllContent());
-        parsedXml.reset (doc.getDocumentElement());
+        parsedXml = doc.getDocumentElement();
 
         if (parsedXml.get() == nullptr)
         {
@@ -366,7 +368,7 @@ private:
         return new XmlTreeItem (*parsedXml);
     }
 
-    /** Parses the editors contects as JSON. */
+    /** Parses the editor's contents as JSON. */
     TreeViewItem* rebuildJson()
     {
         var parsedJson;

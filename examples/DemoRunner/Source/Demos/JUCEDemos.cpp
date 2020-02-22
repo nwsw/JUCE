@@ -24,7 +24,7 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "../../../Assets/DemoUtilities.h"
 #include "JUCEDemos.h"
 
@@ -51,7 +51,12 @@ JUCEDemos::DemoCategory& JUCEDemos::getCategory (const String& name)
 
 void JUCEDemos::registerDemo (std::function<Component*()> constructorCallback, const String& filePath, const String& category, bool isHeavyweight)
 {
-    auto f = findExamplesDirectoryFromExecutable (File::getSpecialLocation (File::SpecialLocationType::currentApplicationFile));
+   #if JUCE_MAC
+    auto f = File::getSpecialLocation (File::currentExecutableFile)
+                  .getParentDirectory().getParentDirectory().getChildFile ("Resources");
+   #else
+    auto f = findExamplesDirectoryFromExecutable (File::getSpecialLocation (File::currentApplicationFile));
+   #endif
 
     #if ! (JUCE_ANDROID || JUCE_IOS)
     if (f == File())
@@ -80,8 +85,6 @@ File JUCEDemos::findExamplesDirectoryFromExecutable (File exec)
 }
 
 //==============================================================================
-ScopedPointer<AudioDeviceManager> sharedAudioDeviceManager;
-
 static String getCurrentDefaultAudioDeviceName (AudioDeviceManager& deviceManager, bool isInput)
 {
     auto* deviceType = deviceManager.getCurrentDeviceTypeObject();
@@ -100,7 +103,7 @@ static String getCurrentDefaultAudioDeviceName (AudioDeviceManager& deviceManage
 AudioDeviceManager& getSharedAudioDeviceManager (int numInputChannels, int numOutputChannels)
 {
     if (sharedAudioDeviceManager == nullptr)
-        sharedAudioDeviceManager = new AudioDeviceManager();
+        sharedAudioDeviceManager.reset (new AudioDeviceManager());
 
     auto* currentDevice = sharedAudioDeviceManager->getCurrentAudioDevice();
 
@@ -124,8 +127,7 @@ AudioDeviceManager& getSharedAudioDeviceManager (int numInputChannels, int numOu
 
     if (sharedAudioDeviceManager->getCurrentAudioDevice() != nullptr)
     {
-        AudioDeviceManager::AudioDeviceSetup setup;
-        sharedAudioDeviceManager->getAudioDeviceSetup (setup);
+        auto setup = sharedAudioDeviceManager->getAudioDeviceSetup();
 
         auto numInputs  = jmax (numInputChannels,  setup.inputChannels.countNumberOfSetBits());
         auto numOutputs = jmax (numOutputChannels, setup.outputChannels.countNumberOfSetBits());

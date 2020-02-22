@@ -33,7 +33,9 @@
                    juce_audio_plugin_client, juce_audio_processors,
                    juce_audio_utils, juce_core, juce_data_structures, juce_dsp,
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017
+ exporters:        xcode_mac, vs2019
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             AudioProcessor
  mainClass:        DspModulePluginDemoAudioProcessor
@@ -194,7 +196,7 @@ public:
             process (dsp::ProcessContextReplacing<float> (firstChan));
 
             for (size_t chan = 1; chan < block.getNumChannels(); ++chan)
-                block.getSingleChannelBlock (chan).copy (firstChan);
+                block.getSingleChannelBlock (chan).copyFrom (firstChan);
         }
     }
 
@@ -272,7 +274,8 @@ public:
             auto maxSize = static_cast<size_t> (roundToInt (getSampleRate() * (8192.0 / 44100.0)));
             auto assetName = (type == 0 ? "Impulse1.wav" : "Impulse2.wav");
 
-            ScopedPointer<InputStream> assetInputStream (createAssetInputStream (assetName));
+            std::unique_ptr<InputStream> assetInputStream (createAssetInputStream (assetName));
+
             if (assetInputStream != nullptr)
             {
                 currentCabinetData.reset();
@@ -478,7 +481,7 @@ private:
         //==============================================================================
         DspModulePluginDemoAudioProcessor& processor;
 
-        ScopedPointer<ParameterSlider> inputVolumeSlider, outputVolumeSlider,
+        std::unique_ptr<ParameterSlider> inputVolumeSlider, outputVolumeSlider,
                                          lowPassFilterFreqSlider, highPassFilterFreqSlider;
         ComboBox stereoBox, slopeBox, waveshaperBox, cabinetTypeBox;
         ToggleButton cabinetSimButton, oversamplingButton;
@@ -495,7 +498,7 @@ private:
     {
         ScopedNoDenormals noDenormals;
 
-        // Input volume applied with a LinearSmoothedValue
+        // Input volume applied with a SmoothedValue
         inputVolume.process (context);
 
         // Pre-highpass filtering, very useful for distortion audio effects
@@ -508,7 +511,7 @@ private:
         setLatencySamples (audioCurrentlyOversampled ? roundToInt (oversampling->getLatencyInSamples()) : 0);
 
         if (audioCurrentlyOversampled)
-            oversampledBlock = oversampling->processSamplesUp (context.getInputBlock());
+            oversampledBlock = oversampling->processSamplesUp (context.getOutputBlock());
 
         auto waveshaperContext = audioCurrentlyOversampled ? dsp::ProcessContextReplacing<float> (oversampledBlock)
                                                            : context;
@@ -540,7 +543,7 @@ private:
         convolution.process (context);
         context.isBypassed = wasBypassed;
 
-        // Output volume applied with a LinearSmoothedValue
+        // Output volume applied with a SmoothedValue
         outputVolume.process (context);
     }
 
@@ -555,7 +558,7 @@ private:
 
     dsp::Gain<float> inputVolume, outputVolume;
 
-    ScopedPointer<dsp::Oversampling<float>> oversampling;
+    std::unique_ptr<dsp::Oversampling<float>> oversampling;
     bool audioCurrentlyOversampled = false;
 
     Atomic<int> cabinetType;

@@ -40,7 +40,7 @@ public:
     {
     }
 
-    ~LiveBuildCodeEditor()
+    ~LiveBuildCodeEditor() override
     {
         for (int i = getNumChildComponents(); --i >= 0;)
             if (auto* c = dynamic_cast<DiagnosticOverlayComponent*> (getChildComponent (i)))
@@ -77,7 +77,7 @@ private:
             endPosition.setPositionMaintained (true);
         }
 
-        ~OverlayComponent()
+        ~OverlayComponent() override
         {
             setEditor (nullptr);
         }
@@ -201,6 +201,8 @@ private:
                 if (auto* l = findParentComponentOfClass<LaunchClassOverlayComponent>())
                     l->launch();
             }
+
+            using Button::clicked;
         };
 
         void launch()
@@ -224,31 +226,38 @@ private:
             startTimer (600);
         }
 
-        ~ComponentClassList()
+        ~ComponentClassList() override
         {
             deleteOverlays();
         }
 
         void timerCallback() override
         {
-            Array<ClassDatabase::Class*> newClasses;
+            Array<WeakReference<ClassDatabase::Class>> newClasses;
 
             if (childProcess != nullptr)
                 const_cast <ClassDatabase::ClassList&> (childProcess->getComponentList()).globalNamespace.findClassesDeclaredInFile (newClasses, file);
 
             for (int i = newClasses.size(); --i >= 0;)
-                if (! newClasses.getUnchecked(i)->getInstantiationFlags().canBeInstantiated())
+            {
+                auto& c = newClasses.getReference (i);
+
+                if (c == nullptr || ! c->getInstantiationFlags().canBeInstantiated())
                     newClasses.remove (i);
+            }
 
             if (newClasses != classes)
             {
                 classes = newClasses;
                 deleteOverlays();
 
-                for (auto& c : classes)
+                for (auto c : classes)
                 {
-                    CodeDocument::Position pos (owner.getDocument(), c->getClassDeclarationRange().range.getStart());
-                    overlays.add (new LaunchClassOverlayComponent (owner, pos, pos, c->getName()));
+                    if (c != nullptr)
+                    {
+                        CodeDocument::Position pos (owner.getDocument(), c->getClassDeclarationRange().range.getStart());
+                        overlays.add (new LaunchClassOverlayComponent (owner, pos, pos, c->getName()));
+                    }
                 }
             }
         }
@@ -264,7 +273,7 @@ private:
         GenericCodeEditorComponent& owner;
         CompileEngineChildProcess::Ptr childProcess;
         File file;
-        Array<ClassDatabase::Class*> classes;
+        Array<WeakReference<ClassDatabase::Class>> classes;
         Array<Component::SafePointer<Component>> overlays;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ComponentClassList)
@@ -362,7 +371,7 @@ private:
                 String text = getTextInRange (selection).toLowerCase();
 
                 if (isIntegerLiteral (text) || isFloatLiteral (text))
-                    overlay = new LiteralHighlightOverlay (*this, selection, mightBeColourValue (text));
+                    overlay.reset (new LiteralHighlightOverlay (*this, selection, mightBeColourValue (text)));
             }
         }
 
@@ -450,7 +459,7 @@ private:
     {
     public:
         ControlsComponent (CodeDocument& doc, const Range<int>& selection,
-                           CompileEngineChildProcess* cp, bool showColourSelector)
+                           CompileEngineChildProcess::Ptr cp, bool showColourSelector)
             : document (doc),
               start (doc, selection.getStart()),
               end (doc, selection.getEnd()),
@@ -627,9 +636,9 @@ private:
             owner.getDocument().addListener (this);
         }
 
-        ~LiteralHighlightOverlay()
+        ~LiteralHighlightOverlay() override
         {
-            if (Component* p = getParentComponent())
+            if (auto* p = getParentComponent())
             {
                 p->removeChildComponent (this);
 
@@ -677,17 +686,17 @@ private:
         static Colour getBackgroundColour() { return Colour (0xcb5c7879); }
     };
 
-    ScopedPointer<LiteralHighlightOverlay> overlay;
+    std::unique_ptr<LiteralHighlightOverlay> overlay;
 };
 
 //==============================================================================
 class LiveBuildCodeEditorDocument  : public SourceCodeDocument
 {
 public:
-    LiveBuildCodeEditorDocument (Project* project, const File& file)
-        : SourceCodeDocument (project, file)
+    LiveBuildCodeEditorDocument (Project* projectToUse, const File& file)
+        : SourceCodeDocument (projectToUse, file)
     {
-        if (project != nullptr)
+        if (projectToUse != nullptr)
             if (CompileEngineChildProcess::Ptr childProcess = getChildProcess())
                 childProcess->editorOpened (file, getCodeDocument());
     }

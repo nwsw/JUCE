@@ -69,7 +69,7 @@ namespace
             if (! output.writeString (value))
                 return false;
 
-            const size_t numPaddingZeros = ~value.length() & 3;
+            const size_t numPaddingZeros = ~value.getNumBytesAsUTF8() & 3;
 
             return output.writeRepeatedByte ('\0', numPaddingZeros);
         }
@@ -83,6 +83,11 @@ namespace
             const size_t numPaddingZeros = ~(blob.getSize() - 1) & 3;
 
             return output.writeRepeatedByte (0, numPaddingZeros);
+        }
+
+        bool writeColour (OSCColour colour)
+        {
+            return output.writeIntBigEndian ((int32) colour.toInt32());
         }
 
         bool writeTimeTag (OSCTimeTag timeTag)
@@ -123,6 +128,7 @@ namespace
                 case OSCTypes::float32:     return writeFloat32 (arg.getFloat32());
                 case OSCTypes::string:      return writeString (arg.getString());
                 case OSCTypes::blob:        return writeBlob (arg.getBlob());
+                case OSCTypes::colour:      return writeColour (arg.getColour());
 
                 default:
                     // In this very unlikely case you supplied an invalid OSCType!
@@ -326,6 +332,7 @@ bool OSCSender::send (const OSCBundle& bundle)      { return pimpl->send (bundle
 bool OSCSender::sendToIPAddress (const String& host, int port, const OSCMessage& message) { return pimpl->send (message, host, port); }
 bool OSCSender::sendToIPAddress (const String& host, int port, const OSCBundle& bundle)   { return pimpl->send (bundle,  host, port); }
 
+
 //==============================================================================
 //==============================================================================
 #if JUCE_UNIT_TESTS
@@ -333,7 +340,9 @@ bool OSCSender::sendToIPAddress (const String& host, int port, const OSCBundle& 
 class OSCBinaryWriterTests  : public UnitTest
 {
 public:
-    OSCBinaryWriterTests() : UnitTest ("OSCBinaryWriter class", "OSC") {}
+    OSCBinaryWriterTests()
+        : UnitTest ("OSCBinaryWriter class", UnitTestCategories::osc)
+    {}
 
     void runTest()
     {
@@ -660,7 +669,9 @@ static OSCBinaryWriterTests OSCBinaryWriterUnitTests;
 class OSCRoundTripTests  : public UnitTest
 {
 public:
-    OSCRoundTripTests() : UnitTest ("OSCRoundTripTests class", "OSC") {}
+    OSCRoundTripTests()
+        : UnitTest ("OSCRoundTripTests class", UnitTestCategories::osc)
+    {}
 
     void runTest()
     {
@@ -861,7 +872,6 @@ public:
 
 static OSCRoundTripTests OSCRoundTripUnitTests;
 
-//==============================================================================
-#endif // JUCE_UNIT_TESTS
+#endif
 
 } // namespace juce

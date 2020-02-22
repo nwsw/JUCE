@@ -39,15 +39,13 @@ public:
        : DrawableButton (buttonName, buttonStyle)
     {
         // svg for thumbnail icon
-        ScopedPointer<XmlElement> svg (XmlDocument::parse (thumbSvg));
+        auto svg = parseXML (thumbSvg);
         jassert (svg != nullptr);
-
         thumb = Drawable::createFromSVG (*svg);
 
         // svg for thumbnail background highlight
-        ScopedPointer<XmlElement> backSvg (XmlDocument::parse (BinaryData::wizard_Highlight_svg));
+        auto backSvg = parseXML (BinaryData::wizard_Highlight_svg);
         jassert (backSvg != nullptr);
-
         hoverBackground = Drawable::createFromSVG (*backSvg);
 
         name = buttonName;
@@ -129,7 +127,9 @@ private:
         Analytics::getInstance()->logEvent ("Start Page Button", data, ProjucerAnalyticsEvent::startPageEvent);
     }
 
-    ScopedPointer<Drawable> thumb, hoverBackground;
+    using DrawableButton::clicked;
+
+    std::unique_ptr<Drawable> thumb, hoverBackground;
     String name, description;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TemplateOptionButton)

@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        DialogsDemo
@@ -159,6 +161,18 @@ public:
         }
 
         setSize (500, 500);
+
+        RuntimePermissions::request (RuntimePermissions::readExternalStorage,
+                                     [] (bool granted)
+                                     {
+                                         if (! granted)
+                                         {
+                                             AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
+                                                                               "Permissions warning",
+                                                                               "External storage access permission not granted, some files"
+                                                                               " may be inaccessible.");
+                                         }
+                                     });
     }
 
     //==============================================================================
@@ -221,7 +235,8 @@ private:
         {
             AlertWindow::showOkCancelBox (AlertWindow::QuestionIcon, "This is an ok/cancel AlertWindow",
                                           "And this is the AlertWindow's message. Blah blah blah blah blah blah blah blah blah blah blah blah blah.",
-                                          {}, {}, 0, ModalCallbackFunction::forComponent (alertBoxResultChosen, this));
+                                          {}, {}, {},
+                                          ModalCallbackFunction::forComponent (alertBoxResultChosen, this));
         }
         else if (type == calloutBoxWindow)
         {
@@ -321,9 +336,11 @@ private:
                     fileToSave = fileToSave.getChildFile ("JUCE.png");
                     fileToSave.deleteFile();
 
-                    ScopedPointer<OutputStream> outStream (fileToSave.createOutputStream());
-                    ScopedPointer<InputStream> inStream (createAssetInputStream ("juce_icon.png"));
-                    outStream->writeFromInputStream (*inStream, -1);
+                    FileOutputStream outStream (fileToSave);
+
+                    if (outStream.openedOk())
+                        if (auto inStream = std::unique_ptr<InputStream> (createAssetInputStream ("juce_icon.png")))
+                            outStream.writeFromInputStream (*inStream, -1);
                 }
 
                 fc.reset (new FileChooser ("Choose a file to save...",
@@ -343,8 +360,8 @@ private:
                                    #if JUCE_ANDROID || JUCE_IOS
                                      if (! result.isEmpty())
                                      {
-                                         ScopedPointer<InputStream>  wi (fileToSave.createInputStream());
-                                         ScopedPointer<OutputStream> wo (result.createOutputStream());
+                                         std::unique_ptr<InputStream>  wi (fileToSave.createInputStream());
+                                         std::unique_ptr<OutputStream> wo (result.createOutputStream());
 
                                          if (wi.get() != nullptr && wo.get() != nullptr)
                                          {
@@ -442,7 +459,7 @@ private:
     }
 
     ImagePreviewComponent imagePreview;
-    ScopedPointer<FileChooser> fc;
+    std::unique_ptr<FileChooser> fc;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DialogsDemo)
 };

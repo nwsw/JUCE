@@ -26,7 +26,7 @@ public:
     {
         // This method is where you should put your application's initialisation code..
 
-        mainWindow = new MainWindow (getApplicationName());
+        mainWindow.reset (new MainWindow (getApplicationName()));
     }
 
     void shutdown() override
@@ -67,7 +67,13 @@ public:
             setUsingNativeTitleBar (true);
             setContentOwned (new %%content_component_class%%(), true);
 
+           #if JUCE_IOS || JUCE_ANDROID
+            setFullScreen (true);
+           #else
+            setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
+           #endif
+
             setVisible (true);
         }
 
@@ -91,7 +97,7 @@ public:
     };
 
 private:
-    ScopedPointer<MainWindow> mainWindow;
+    std::unique_ptr<MainWindow> mainWindow;
 };
 
 //==============================================================================

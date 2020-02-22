@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        MenusDemo
@@ -79,7 +81,7 @@ struct BurgerMenuHeader  : public Component
         addAndMakeVisible (burgerButton);
     }
 
-    ~BurgerMenuHeader()
+    ~BurgerMenuHeader() override
     {
         sidePanel.showOrHide (false);
     }
@@ -165,7 +167,7 @@ public:
         setSize (500, 500);
     }
 
-    ~MenusDemo()
+    ~MenusDemo() override
     {
        #if JUCE_MAC
         MenuBarModel::setMacMainMenu (nullptr);
@@ -314,7 +316,7 @@ public:
 private:
     ApplicationCommandManager commandManager;
 
-    ScopedPointer<MenuBarComponent> menuBar;
+    std::unique_ptr<MenuBarComponent> menuBar;
     MenuBarPosition menuBarPosition = MenuBarPosition::window;
 
     SidePanel sidePanel { "Menu", 300, false };

@@ -41,13 +41,13 @@ class SparseSet
 {
 public:
     //==============================================================================
-    SparseSet() noexcept {}
+    SparseSet() = default;
 
     SparseSet (const SparseSet&) = default;
     SparseSet& operator= (const SparseSet&) = default;
 
-    SparseSet (SparseSet&& other) noexcept : ranges (static_cast<Array<Range<Type>>&&> (other.ranges)) {}
-    SparseSet& operator= (SparseSet&& other) noexcept { ranges = static_cast<Array<Range<Type>>&&> (other.ranges); return *this; }
+    SparseSet (SparseSet&& other) noexcept : ranges (std::move (other.ranges)) {}
+    SparseSet& operator= (SparseSet&& other) noexcept { ranges = std::move (other.ranges); return *this; }
 
     //==============================================================================
     /** Clears the set. */
@@ -169,23 +169,33 @@ public:
                 if (r.getStart() >= rangeToRemove.getEnd())
                     continue;
 
-                if (r.contains (rangeToRemove))
-                {
-                    auto start = r.withEnd (rangeToRemove.getStart());
-                    r.setStart (rangeToRemove.getEnd());
-                    ranges.insert (i, start);
-                }
-                else if (rangeToRemove.contains (r))
+                if (rangeToRemove.contains (r))
                 {
                     ranges.remove (i);
                 }
-                else if (rangeToRemove.getEnd() > r.getStart())
+                else if (r.contains (rangeToRemove))
                 {
-                    r.setStart (rangeToRemove.getEnd());
+                    auto r1 = r.withEnd (rangeToRemove.getStart());
+                    auto r2 = r.withStart (rangeToRemove.getEnd());
+
+                    // this should be covered in if (rangeToRemove.contains (r))
+                    jassert (! r1.isEmpty() || ! r2.isEmpty());
+
+                    r = r1;
+
+                    if (r.isEmpty())
+                        r = r2;
+
+                    if (! r1.isEmpty() && ! r2.isEmpty())
+                        ranges.insert (i + 1, r2);
+                }
+                else if (rangeToRemove.getEnd() > r.getEnd())
+                {
+                    r.setEnd (rangeToRemove.getStart());
                 }
                 else
                 {
-                    r.setEnd (rangeToRemove.getStart());
+                    r.setStart (rangeToRemove.getEnd());
                 }
             }
         }

@@ -37,6 +37,8 @@
                    juce_product_unlocking
  exporters:        xcode_mac, xcode_iphone, androidstudio
 
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
+
  type:             Component
  mainClass:        InAppPurchasesDemo
 
@@ -49,6 +51,19 @@
 #pragma once
 
 #include "../Assets/DemoUtilities.h"
+
+/*
+    To finish the setup of this demo, do the following in the Projucer project:
+
+    1. In the project settings, set the "Bundle Identifier" to com.roli.juceInAppPurchaseSample
+    2. In the Android exporter settings, change the following settings:
+         - "In-App Billing" - Enabled
+         - "Key Signing: key.store" - path to InAppPurchase.keystore file in examples/Assets/Signing
+         - "Key Signing: key.store.password" - amazingvoices
+         - "Key Signing: key-alias" - InAppPurchase
+         - "Key Signing: key.alias.password" - amazingvoices
+    3. Re-save the project
+*/
 
 //==============================================================================
 class VoicePurchases      : private InAppPurchases::Listener
@@ -106,7 +121,7 @@ public:
                 purchaseInProgress = true;
 
                 product.purchaseInProgress = true;
-                InAppPurchases::getInstance()->purchaseProduct (product.identifier, false);
+                InAppPurchases::getInstance()->purchaseProduct (product.identifier);
 
                 guiUpdater.triggerAsyncUpdate();
             }
@@ -382,8 +397,7 @@ public:
 
                 if (auto* assetStream = createAssetInputStream (String ("Purchases/" + String (imageResourceName)).toRawUTF8()))
                 {
-                    ScopedPointer<InputStream> fileStream (assetStream);
-
+                    std::unique_ptr<InputStream> fileStream (assetStream);
                     avatar = PNGImageFormat().decodeImage (*fileStream);
                 }
             }
@@ -557,7 +571,7 @@ private:
 
             if (auto* assetStream = createAssetInputStream (assetName.toRawUTF8()))
             {
-                ScopedPointer<InputStream> fileStream (assetStream);
+                std::unique_ptr<InputStream> fileStream (assetStream);
 
                 currentPhraseData.reset();
                 fileStream->readIntoMemoryBlock (currentPhraseData);
@@ -572,7 +586,7 @@ private:
 
     Label phraseLabel                          { "phraseLabel", NEEDS_TRANS ("Phrases:") };
     ListBox phraseListBox                      { "phraseListBox" };
-    ScopedPointer<ListBoxModel> phraseModel    { new PhraseModel() };
+    std::unique_ptr<ListBoxModel> phraseModel  { new PhraseModel() };
     TextButton playStopButton                  { "Play" };
 
     SoundPlayer player;
@@ -581,7 +595,7 @@ private:
 
     Label voiceLabel                           { "voiceLabel", NEEDS_TRANS ("Voices:") };
     ListBox voiceListBox                       { "voiceListBox" };
-    ScopedPointer<VoiceModel> voiceModel       { new VoiceModel (purchases) };
+    std::unique_ptr<VoiceModel> voiceModel     { new VoiceModel (purchases) };
 
     MemoryBlock currentPhraseData;
 

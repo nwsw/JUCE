@@ -33,7 +33,9 @@
                    juce_audio_processors, juce_audio_utils, juce_core,
                    juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        AudioRecordingDemo
@@ -62,7 +64,7 @@ public:
         backgroundThread.startThread();
     }
 
-    ~AudioRecorder()
+    ~AudioRecorder() override
     {
         stop();
     }
@@ -76,15 +78,13 @@ public:
         {
             // Create an OutputStream to write to our destination file...
             file.deleteFile();
-            ScopedPointer<FileOutputStream> fileStream (file.createOutputStream());
 
-            if (fileStream.get() != nullptr)
+            if (auto fileStream = std::unique_ptr<FileOutputStream> (file.createOutputStream()))
             {
                 // Now create a WAV writer object that writes to our output stream...
                 WavAudioFormat wavFormat;
-                auto* writer = wavFormat.createWriterFor (fileStream.get(), sampleRate, 1, 16, {}, 0);
 
-                if (writer != nullptr)
+                if (auto writer = wavFormat.createWriterFor (fileStream.get(), sampleRate, 1, 16, {}, 0))
                 {
                     fileStream.release(); // (passes responsibility for deleting the stream to the writer object that is now using it)
 
@@ -120,7 +120,7 @@ public:
 
     bool isRecording() const
     {
-        return activeWriter != nullptr;
+        return activeWriter.load() != nullptr;
     }
 
     //==============================================================================
@@ -140,9 +140,9 @@ public:
     {
         const ScopedLock sl (writerLock);
 
-        if (activeWriter != nullptr && numInputChannels >= thumbnail.getNumChannels())
+        if (activeWriter.load() != nullptr && numInputChannels >= thumbnail.getNumChannels())
         {
-            activeWriter->write (inputChannelData, numSamples);
+            activeWriter.load()->write (inputChannelData, numSamples);
 
             // Create an AudioBuffer to wrap our incoming data, note that this does no allocations or copies, it simply references our input data
             AudioBuffer<float> buffer (const_cast<float**> (inputChannelData), thumbnail.getNumChannels(), numSamples);
@@ -158,13 +158,13 @@ public:
 
 private:
     AudioThumbnail& thumbnail;
-    TimeSliceThread backgroundThread  { "Audio Recorder Thread" }; // the thread that will write our audio data to disk
-    ScopedPointer<AudioFormatWriter::ThreadedWriter> threadedWriter; // the FIFO used to buffer the incoming data
-    double sampleRate   = 0.0;
+    TimeSliceThread backgroundThread { "Audio Recorder Thread" }; // the thread that will write our audio data to disk
+    std::unique_ptr<AudioFormatWriter::ThreadedWriter> threadedWriter; // the FIFO used to buffer the incoming data
+    double sampleRate = 0.0;
     int64 nextSampleNum = 0;
 
     CriticalSection writerLock;
-    AudioFormatWriter::ThreadedWriter* volatile activeWriter = nullptr;
+    std::atomic<AudioFormatWriter::ThreadedWriter*> activeWriter { nullptr };
 };
 
 //==============================================================================
@@ -178,7 +178,7 @@ public:
         thumbnail.addChangeListener (this);
     }
 
-    ~RecordingThumbnail()
+    ~RecordingThumbnail() override
     {
         thumbnail.removeChangeListener (this);
     }
@@ -272,7 +272,7 @@ public:
         setSize (500, 500);
     }
 
-    ~AudioRecordingDemo()
+    ~AudioRecordingDemo() override
     {
         audioDeviceManager.removeAudioCallback (&recorder);
         audioDeviceManager.removeAudioCallback (&liveAudioScroller);

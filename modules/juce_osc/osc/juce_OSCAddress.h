@@ -70,7 +70,7 @@ public:
     bool operator!= (const OSCAddress& other) const noexcept;
 
     /** Converts the OSCAddress to a String.
-        Note: trailing slashes are always removed automatically.
+        Note: Trailing slashes are always removed automatically.
 
         @returns a String object that represents the OSC address.
     */
@@ -130,14 +130,14 @@ public:
     bool matches (const OSCAddress& address) const noexcept;
 
     /** Checks whether the OSCAddressPattern contains any of the allowed OSC
-        address patttern wildcards: ?, *, [], {}
+        address pattern wildcards: ?, *, [], {}
 
         @returns true if the OSCAddressPattern contains OSC wildcards, false otherwise.
     */
     bool containsWildcards() const noexcept     { return wasInitialisedWithWildcards; }
 
     /** Converts the OSCAddressPattern to a String.
-        Note: trailing slashes are always removed automatically.
+        Note: Trailing slashes are always removed automatically.
 
         @returns a String object that represents the OSC address pattern.
     */

@@ -33,7 +33,9 @@
                    juce_audio_processors, juce_audio_utils, juce_blocks_basics,
                    juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        BlocksDrawingDemo
@@ -305,20 +307,23 @@ public:
 
        #if JUCE_IOS
         connectButton.setButtonText ("Connect");
-        connectButton.onClick = [this] { BluetoothMidiDevicePairingDialogue::open(); };
+        connectButton.onClick = [] { BluetoothMidiDevicePairingDialogue::open(); };
         connectButton.setAlwaysOnTop (true);
         addAndMakeVisible (connectButton);
        #endif
 
         setSize (600, 600);
+
+        topologyChanged();
     }
 
-    ~BlocksDrawingDemo()
+    ~BlocksDrawingDemo() override
     {
         if (activeBlock != nullptr)
             detachActiveBlock();
 
         lightpadComponent.removeListener (this);
+        topologySource.removeListener (this);
     }
 
     void resized() override
@@ -404,7 +409,7 @@ public:
                     setLEDProgram (*activeBlock);
                 }
 
-                // Make the on screen Lighpad component visible
+                // Make the on screen Lightpad component visible
                 lightpadComponent.setVisible (true);
                 infoLabel.setVisible (false);
 
@@ -561,7 +566,7 @@ private:
                 return;
             }
 
-            // If there is no ActiveLED obejct for this LED then create one,
+            // If there is no ActiveLED object for this LED then create one,
             // add it to the array, set the LED on the Block and return
             if (index < 0)
             {

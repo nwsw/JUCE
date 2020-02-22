@@ -48,13 +48,13 @@ public:
     ComponentLayout* getComponentLayout() const                 { return components.get(); }
 
     //==============================================================================
-    XmlElement* createXml() const;
+    std::unique_ptr<XmlElement> createXml() const;
     bool loadFromXml (const XmlElement& xml);
 
     void fillInGeneratedCode (GeneratedCode& code) const;
     void applyCustomPaintSnippets (StringArray&);
 
 private:
-    ScopedPointer<ComponentLayout> components;
-    ScopedPointer<PaintRoutine> backgroundGraphics;
+    std::unique_ptr<ComponentLayout> components;
+    std::unique_ptr<PaintRoutine> backgroundGraphics;
 };

@@ -42,7 +42,7 @@ class MainWindow  : public DocumentWindow,
 public:
     //==============================================================================
     MainWindow();
-    ~MainWindow();
+    ~MainWindow() override;
 
     //==============================================================================
     void closeButtonPressed() override;
@@ -50,14 +50,15 @@ public:
     //==============================================================================
     bool canOpenFile (const File& file) const;
     bool openFile (const File& file);
-    void setProject (Project* newProject);
-    Project* getProject() const                 { return currentProject.get(); }
+
+    void setProject (std::unique_ptr<Project> newProject);
+    Project* getProject() const  { return currentProject.get(); }
+
     bool tryToOpenPIP (const File& f);
 
     void makeVisible();
     void restoreWindowPosition();
-    bool closeProject (Project* project, bool askToSave = true);
-    bool closeCurrentProject();
+    bool closeCurrentProject (bool askToSave);
     void moveProject (File newProjectFile);
 
     void showStartPage();
@@ -78,7 +79,7 @@ public:
     bool shouldDropFilesWhenDraggedExternally (const DragAndDropTarget::SourceDetails& sourceDetails,
                                                StringArray& files, bool& canMoveFiles) override;
 private:
-    ScopedPointer<Project> currentProject;
+    std::unique_ptr<Project> currentProject;
     Value projectNameValue;
 
     static const char* getProjectWindowPosName()   { return "projectWindowPos"; }
@@ -118,12 +119,14 @@ public:
     void reopenLastProjects();
     void saveCurrentlyOpenProjectList();
 
-    void avoidSuperimposedWindows (MainWindow*);
+    void checkWindowBounds (MainWindow&);
 
     void sendLookAndFeelChange();
 
     OwnedArray<MainWindow> windows;
 
 private:
+    bool isInReopenLastProjects = false;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainWindowList)
 };

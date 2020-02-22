@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make, androidstudio, xcode_iphone
+ exporters:        xcode_mac, vs2019, linux_make, androidstudio, xcode_iphone
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        ComponentTransformsDemo
@@ -53,7 +55,7 @@ class ComponentTransformsDemo  : public Component
 public:
     ComponentTransformsDemo()
     {
-        content.reset (new WidgetsDemo());
+        content.reset (new WidgetsDemo (true));
         addAndMakeVisible (content.get());
         content->setSize (750, 500);
 
@@ -94,7 +96,7 @@ public:
     }
 
 private:
-    ScopedPointer<Component> content;
+    std::unique_ptr<Component> content;
 
     struct CornerDragger  : public Component
     {

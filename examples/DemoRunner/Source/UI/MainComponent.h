@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "DemoContentComponent.h"
 
 //==============================================================================
@@ -35,7 +35,7 @@ class MainComponent    : public Component
 public:
     //==============================================================================
     MainComponent();
-    ~MainComponent();
+    ~MainComponent() override;
 
     //==============================================================================
     void paint (Graphics&) override;
@@ -58,7 +58,7 @@ private:
     void updateRenderingEngine (int index);
 
     //==============================================================================
-    ScopedPointer<DemoContentComponent> contentComponent;
+    std::unique_ptr<DemoContentComponent> contentComponent;
     SidePanel demosPanel  { "Demos", 250, true };
 
     OpenGLContext openGLContext;

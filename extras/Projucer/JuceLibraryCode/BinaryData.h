@@ -90,10 +90,10 @@ namespace BinaryData
     const int            jucer_AnimatedComponentTemplate_hSize = 1201;
 
     extern const char*   jucer_AudioComponentSimpleTemplate_h;
-    const int            jucer_AudioComponentSimpleTemplate_hSize = 3194;
+    const int            jucer_AudioComponentSimpleTemplate_hSize = 3693;
 
     extern const char*   jucer_AudioComponentTemplate_cpp;
-    const int            jucer_AudioComponentTemplate_cppSize = 2635;
+    const int            jucer_AudioComponentTemplate_cppSize = 3094;
 
     extern const char*   jucer_AudioComponentTemplate_h;
     const int            jucer_AudioComponentTemplate_hSize = 1374;
@@ -114,7 +114,7 @@ namespace BinaryData
     const int            jucer_ComponentTemplate_cppSize = 2126;
 
     extern const char*   jucer_ComponentTemplate_h;
-    const int            jucer_ComponentTemplate_hSize = 2042;
+    const int            jucer_ComponentTemplate_hSize = 2044;
 
     extern const char*   jucer_ContentCompSimpleTemplate_h;
     const int            jucer_ContentCompSimpleTemplate_hSize = 1693;
@@ -135,10 +135,10 @@ namespace BinaryData
     const int            jucer_MainTemplate_NoWindow_cppSize = 2021;
 
     extern const char*   jucer_MainTemplate_SimpleWindow_cpp;
-    const int            jucer_MainTemplate_SimpleWindow_cppSize = 4004;
+    const int            jucer_MainTemplate_SimpleWindow_cppSize = 4127;
 
     extern const char*   jucer_MainTemplate_Window_cpp;
-    const int            jucer_MainTemplate_Window_cppSize = 3964;
+    const int            jucer_MainTemplate_Window_cppSize = 4127;
 
     extern const char*   jucer_NewComponentTemplate_cpp;
     const int            jucer_NewComponentTemplate_cppSize = 1491;
@@ -168,10 +168,13 @@ namespace BinaryData
     const int            jucer_PIPAudioProcessorTemplate_hSize = 4926;
 
     extern const char*   jucer_PIPMain_cpp;
-    const int            jucer_PIPMain_cppSize = 2443;
+    const int            jucer_PIPMain_cppSize = 2421;
 
     extern const char*   jucer_PIPTemplate_h;
     const int            jucer_PIPTemplate_hSize = 517;
+
+    extern const char*   jucer_UnityPluginGUIScript_cs;
+    const int            jucer_UnityPluginGUIScript_csSize = 6433;
 
     extern const char*   colourscheme_dark_xml;
     const int            colourscheme_dark_xmlSize = 1050;
@@ -192,7 +195,7 @@ namespace BinaryData
     const int            RecentFilesMenuTemplate_nibSize = 2842;
 
     // Number of elements in the namedResourceList and originalFileNames arrays.
-    const int namedResourceListSize = 61;
+    const int namedResourceListSize = 62;
 
     // Points to the start of a list of resource names.
     extern const char* namedResourceList[];
@@ -202,9 +205,9 @@ namespace BinaryData
 
     // If you provide the name of one of the binary resource variables above, this function will
     // return the corresponding data and its size (or a null pointer if the name isn't found).
-    const char* getNamedResource (const char* resourceNameUTF8, int& dataSizeInBytes) noexcept;
+    const char* getNamedResource (const char* resourceNameUTF8, int& dataSizeInBytes);
 
     // If you provide the name of one of the binary resource variables above, this function will
     // return the corresponding original, non-mangled filename (or a null pointer if the name isn't found).
-    const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8) noexcept;
+    const char* getNamedResourceOriginalFilename (const char* resourceNameUTF8);
 }

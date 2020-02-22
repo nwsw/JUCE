@@ -26,22 +26,51 @@
 
 #pragma once
 
+#include "jucer_XcodeProjectParser.h"
 
 //==============================================================================
 namespace
 {
-    const char* const osxVersionDefault         = "10.11";
-    const char* const iosVersionDefault         = "9.3";
+    static const char* const iOSDefaultVersion = "9.3";
+    static const StringArray iOSVersions { "7.0", "7.1", "8.0", "8.1", "8.2", "8.3", "8.4",
+                                           "9.0", "9.1", "9.2", "9.3", "10.0", "10.1", "10.2", "10.3",
+                                           "11.0", "12.0", "13.0" };
 
-    const int oldestSDKVersion  = 5;
-    const int currentSDKVersion = 13;
-    const int minimumAUv3SDKVersion = 11;
+    static const int oldestDeploymentTarget  = 7;
+    static const int defaultDeploymentTarget = 11;
+    static const int oldestSDKVersion        = 11;
+    static const int currentSDKVersion       = 15;
+    static const int minimumAUv3SDKVersion   = 11;
 
-    const char* const osxArch_Default           = "default";
-    const char* const osxArch_Native            = "Native";
-    const char* const osxArch_32BitUniversal    = "32BitUniversal";
-    const char* const osxArch_64BitUniversal    = "64BitUniversal";
-    const char* const osxArch_64Bit             = "64BitIntel";
+    static String getVersionName    (int version)  { return "10." + String (version); }
+    static String getSDKDisplayName (int version)  { return getVersionName (version) + " SDK"; }
+    static String getSDKRootName    (int version)  { return "macosx" + getVersionName (version); }
+
+    static String getOSXSDKVersion (const String& sdkVersion)
+    {
+        for (int v = oldestSDKVersion; v <= currentSDKVersion; ++v)
+            if (sdkVersion == getSDKDisplayName (v))
+                return getSDKRootName (v);
+
+        return "macosx";
+    }
+
+    template<class ContainerType>
+    static ContainerType getSDKChoiceList (int oldestVersion, bool displayName)
+    {
+        ContainerType container;
+
+        for (int v = oldestVersion; v <= currentSDKVersion; ++v)
+            container.add (displayName ? getSDKDisplayName (v) : getVersionName (v));
+
+        return container;
+    }
+
+    static const char* const osxArch_Default        = "default";
+    static const char* const osxArch_Native         = "Native";
+    static const char* const osxArch_32BitUniversal = "32BitUniversal";
+    static const char* const osxArch_64BitUniversal = "64BitUniversal";
+    static const char* const osxArch_64Bit          = "64BitIntel";
 }
 
 //==============================================================================
@@ -61,17 +90,33 @@ public:
           customPListValue                             (settings, Ids::customPList,                             getUndoManager()),
           pListPrefixHeaderValue                       (settings, Ids::pListPrefixHeader,                       getUndoManager()),
           pListPreprocessValue                         (settings, Ids::pListPreprocess,                         getUndoManager()),
+          subprojectsValue                             (settings, Ids::xcodeSubprojects,                        getUndoManager()),
           extraFrameworksValue                         (settings, Ids::extraFrameworks,                         getUndoManager()),
+          frameworkSearchPathsValue                    (settings, Ids::frameworkSearchPaths,                    getUndoManager()),
+          extraCustomFrameworksValue                   (settings, Ids::extraCustomFrameworks,                   getUndoManager()),
+          embeddedFrameworksValue                      (settings, Ids::embeddedFrameworks,                      getUndoManager()),
           postbuildCommandValue                        (settings, Ids::postbuildCommand,                        getUndoManager()),
           prebuildCommandValue                         (settings, Ids::prebuildCommand,                         getUndoManager()),
-          iosAppExtensionDuplicateResourcesFolderValue (settings, Ids::iosAppExtensionDuplicateResourcesFolder, getUndoManager()),
+          duplicateAppExResourcesFolderValue           (settings, Ids::duplicateAppExResourcesFolder,           getUndoManager(), true),
           iosDeviceFamilyValue                         (settings, Ids::iosDeviceFamily,                         getUndoManager(), "1,2"),
           iPhoneScreenOrientationValue                 (settings, Ids::iPhoneScreenOrientation,                 getUndoManager(), "portraitlandscape"),
           iPadScreenOrientationValue                   (settings, Ids::iPadScreenOrientation,                   getUndoManager(), "portraitlandscape"),
           customXcodeResourceFoldersValue              (settings, Ids::customXcodeResourceFolders,              getUndoManager()),
           customXcassetsFolderValue                    (settings, Ids::customXcassetsFolder,                    getUndoManager()),
+          appSandboxValue                              (settings, Ids::appSandbox,                              getUndoManager()),
+          appSandboxInheritanceValue                   (settings, Ids::appSandboxInheritance,                   getUndoManager()),
+          appSandboxOptionsValue                       (settings, Ids::appSandboxOptions,                       getUndoManager(), Array<var>(), ","),
+          hardenedRuntimeValue                         (settings, Ids::hardenedRuntime,                         getUndoManager()),
+          hardenedRuntimeOptionsValue                  (settings, Ids::hardenedRuntimeOptions,                  getUndoManager(), Array<var>(), ","),
           microphonePermissionNeededValue              (settings, Ids::microphonePermissionNeeded,              getUndoManager()),
-          microphonePermissionsTextValue               (settings, Ids::microphonePermissionsText,               getUndoManager(), "This is an audio app which requires audio input. If you do not have a USB audio interface connected it will use the microphone."),
+          microphonePermissionsTextValue               (settings, Ids::microphonePermissionsText,               getUndoManager(),
+                                                        "This app requires audio input. If you do not have an audio interface connected it will use the built-in microphone."),
+          cameraPermissionNeededValue                  (settings, Ids::cameraPermissionNeeded,                  getUndoManager()),
+          cameraPermissionTextValue                    (settings, Ids::cameraPermissionText,                    getUndoManager(),
+                                                        "This app requires access to the camera to function correctly."),
+          iosBluetoothPermissionNeededValue            (settings, Ids::iosBluetoothPermissionNeeded,            getUndoManager()),
+          iosBluetoothPermissionTextValue              (settings, Ids::iosBluetoothPermissionText,              getUndoManager(),
+                                                        "This app requires access to Bluetooth to function correctly."),
           uiFileSharingEnabledValue                    (settings, Ids::UIFileSharingEnabled,                    getUndoManager()),
           uiSupportsDocumentBrowserValue               (settings, Ids::UISupportsDocumentBrowser,               getUndoManager()),
           uiStatusBarHiddenValue                       (settings, Ids::UIStatusBarHidden,                       getUndoManager()),
@@ -85,56 +130,84 @@ public:
           iosDevelopmentTeamIDValue                    (settings, Ids::iosDevelopmentTeamID,                    getUndoManager()),
           iosAppGroupsIDValue                          (settings, Ids::iosAppGroupsId,                          getUndoManager()),
           keepCustomXcodeSchemesValue                  (settings, Ids::keepCustomXcodeSchemes,                  getUndoManager()),
-          useHeaderMapValue                            (settings, Ids::useHeaderMap,                            getUndoManager())
+          useHeaderMapValue                            (settings, Ids::useHeaderMap,                            getUndoManager()),
+          customLaunchStoryboardValue                  (settings, Ids::customLaunchStoryboard,                  getUndoManager()),
+          exporterBundleIdentifierValue                (settings, Ids::bundleIdentifier,                        getUndoManager())
     {
         name = iOS ? getNameiOS() : getNameMac();
 
         targetLocationValue.setDefault (getDefaultBuildsRootFolder() + getTargetFolderForExporter (getValueTreeTypeName (isIOS)));
     }
 
-    static XcodeProjectExporter* createForSettings (Project& project, const ValueTree& settings)
+    static XcodeProjectExporter* createForSettings (Project& projectToUse, const ValueTree& settingsToUse)
     {
-        if (settings.hasType (getValueTreeTypeName (false)))  return new XcodeProjectExporter (project, settings, false);
-        if (settings.hasType (getValueTreeTypeName (true)))   return new XcodeProjectExporter (project, settings, true);
+        if (settingsToUse.hasType (getValueTreeTypeName (false)))  return new XcodeProjectExporter (projectToUse, settingsToUse, false);
+        if (settingsToUse.hasType (getValueTreeTypeName (true)))   return new XcodeProjectExporter (projectToUse, settingsToUse, true);
 
         return nullptr;
     }
 
     //==============================================================================
-    String getPListToMergeString() const             { return customPListValue.get(); }
-    String getPListPrefixHeaderString() const        { return pListPrefixHeaderValue.get(); }
-    bool isPListPreprocessEnabled() const            { return pListPreprocessValue.get(); }
+    String getPListToMergeString() const               { return customPListValue.get(); }
+    String getPListPrefixHeaderString() const          { return pListPrefixHeaderValue.get(); }
+    bool isPListPreprocessEnabled() const              { return pListPreprocessValue.get(); }
 
-    String getExtraFrameworksString() const          { return extraFrameworksValue.get(); }
+    String getSubprojectsString() const                { return subprojectsValue.get(); }
 
-    String getPostBuildScript() const                { return postbuildCommandValue.get(); }
-    String getPreBuildScript() const                 { return prebuildCommandValue.get(); }
+    String getExtraFrameworksString() const            { return extraFrameworksValue.get(); }
+    String getFrameworkSearchPathsString() const       { return frameworkSearchPathsValue.get(); }
+    String getExtraCustomFrameworksString() const      { return extraCustomFrameworksValue.get(); }
+    String getEmbeddedFrameworksString() const         { return embeddedFrameworksValue.get(); }
 
-    bool shouldDuplicateResourcesFolderForAppExtension() const { return iosAppExtensionDuplicateResourcesFolderValue.get(); }
+    String getPostBuildScript() const                  { return postbuildCommandValue.get(); }
+    String getPreBuildScript() const                   { return prebuildCommandValue.get(); }
 
-    String getDeviceFamilyString() const             { return iosDeviceFamilyValue.get(); }
+    bool shouldDuplicateAppExResourcesFolder() const   { return duplicateAppExResourcesFolderValue.get(); }
 
-    String getiPhoneScreenOrientationString() const  { return iPhoneScreenOrientationValue.get(); }
-    String getiPadScreenOrientationString() const    { return iPadScreenOrientationValue.get(); }
+    String getDeviceFamilyString() const               { return iosDeviceFamilyValue.get(); }
 
-    String getCustomResourceFoldersString() const    { return customXcodeResourceFoldersValue.get().toString().replaceCharacters ("\r\n", "::"); }
-    String getCustomXcassetsFolderString() const     { return customXcassetsFolderValue.get(); }
+    String getiPhoneScreenOrientationString() const    { return iPhoneScreenOrientationValue.get(); }
+    String getiPadScreenOrientationString() const      { return iPadScreenOrientationValue.get(); }
+
+    String getCustomResourceFoldersString() const      { return customXcodeResourceFoldersValue.get().toString().replaceCharacters ("\r\n", "::"); }
+    String getCustomXcassetsFolderString() const       { return customXcassetsFolderValue.get(); }
+    String getCustomLaunchStoryboardString() const     { return customLaunchStoryboardValue.get(); }
+    bool shouldAddStoryboardToProject() const          { return getCustomLaunchStoryboardString().isNotEmpty() || getCustomXcassetsFolderString().isEmpty(); }
+
+    bool isHardenedRuntimeEnabled() const              { return hardenedRuntimeValue.get(); }
+    Array<var> getHardenedRuntimeOptions() const       { return *hardenedRuntimeOptionsValue.get().getArray(); }
+
+    bool isAppSandboxEnabled() const                   { return appSandboxValue.get(); }
+    bool isAppSandboxInhertianceEnabled() const        { return appSandboxInheritanceValue.get(); }
+    Array<var> getAppSandboxOptions() const            { return *appSandboxOptionsValue.get().getArray(); }
 
     bool isMicrophonePermissionEnabled() const         { return microphonePermissionNeededValue.get(); }
     String getMicrophonePermissionsTextString() const  { return microphonePermissionsTextValue.get(); }
 
-    bool isInAppPurchasesEnabled() const             { return iosInAppPurchasesValue.get(); }
-    bool isBackgroundAudioEnabled() const            { return iosBackgroundAudioValue.get(); }
-    bool isBackgroundBleEnabled() const              { return iosBackgroundBleValue.get(); }
-    bool isPushNotificationsEnabled() const          { return iosPushNotificationsValue.get(); }
-    bool isAppGroupsEnabled() const                  { return iosAppGroupsValue.get(); }
-    bool isiCloudPermissionsEnabled() const          { return iCloudPermissionsValue.get(); }
-    bool isFileSharingEnabled() const                { return uiFileSharingEnabledValue.get(); }
-    bool isDocumentBrowserEnabled() const            { return uiSupportsDocumentBrowserValue.get(); }
-    bool isStatusBarHidden() const                   { return uiStatusBarHiddenValue.get(); }
+    bool isCameraPermissionEnabled() const             { return cameraPermissionNeededValue.get(); }
+    String getCameraPermissionTextString() const       { return cameraPermissionTextValue.get(); }
 
-    String getIosDevelopmentTeamIDString() const     { return iosDevelopmentTeamIDValue.get(); }
-    String getAppGroupIdString() const               { return iosAppGroupsIDValue.get(); }
+    bool isBluetoothPermissionEnabled() const          { return iosBluetoothPermissionNeededValue.get(); }
+    String getBluetoothPermissionTextString() const    { return iosBluetoothPermissionTextValue.get(); }
+
+    bool isInAppPurchasesEnabled() const               { return iosInAppPurchasesValue.get(); }
+    bool isBackgroundAudioEnabled() const              { return iosBackgroundAudioValue.get(); }
+    bool isBackgroundBleEnabled() const                { return iosBackgroundBleValue.get(); }
+    bool isPushNotificationsEnabled() const            { return iosPushNotificationsValue.get(); }
+    bool isAppGroupsEnabled() const                    { return iosAppGroupsValue.get(); }
+    bool isiCloudPermissionsEnabled() const            { return iCloudPermissionsValue.get(); }
+    bool isFileSharingEnabled() const                  { return uiFileSharingEnabledValue.get(); }
+    bool isDocumentBrowserEnabled() const              { return uiSupportsDocumentBrowserValue.get(); }
+    bool isStatusBarHidden() const                     { return uiStatusBarHiddenValue.get(); }
+
+    String getDocumentExtensionsString() const         { return documentExtensionsValue.get(); }
+
+    bool shouldKeepCustomXcodeSchemes() const          { return keepCustomXcodeSchemesValue.get(); }
+
+    String getDevelopmentTeamIDString() const          { return iosDevelopmentTeamIDValue.get(); }
+    String getAppGroupIdString() const                 { return iosAppGroupsIDValue.get(); }
+
+    String getDefaultLaunchStoryboardName() const      { jassert (iOS); return "LaunchScreen"; }
 
     //==============================================================================
     bool usesMMFiles() const override                       { return true; }
@@ -162,6 +235,7 @@ public:
             case ProjectType::Target::StandalonePlugIn:
             case ProjectType::Target::GUIApp:
             case ProjectType::Target::StaticLibrary:
+            case ProjectType::Target::DynamicLibrary:
             case ProjectType::Target::SharedCodeTarget:
             case ProjectType::Target::AggregateTarget:
                 return true;
@@ -171,7 +245,7 @@ public:
             case ProjectType::Target::AAXPlugIn:
             case ProjectType::Target::RTASPlugIn:
             case ProjectType::Target::AudioUnitPlugIn:
-            case ProjectType::Target::DynamicLibrary:
+            case ProjectType::Target::UnityPlugIn:
                 return ! iOS;
             default:
                 break;
@@ -186,7 +260,13 @@ public:
         {
             props.add (new TextPropertyComponent (customXcassetsFolderValue, "Custom Xcassets Folder", 128, false),
                        "If this field is not empty, your Xcode project will use the custom xcassets folder specified here "
-                       "for the app icons and launchimages, and will ignore the Icon files specified above.");
+                       "for the app icons and launchimages, and will ignore the Icon files specified above. This will also prevent "
+                       "a launch storyboard from being used.");
+
+            props.add (new TextPropertyComponent (customLaunchStoryboardValue, "Custom Launch Storyboard", 256, false),
+                       "If this field is not empty then the specified launch storyboard file will be added to the project as an Xcode "
+                       "resource and will be used for the app's launch screen, otherwise a default blank launch storyboard will be used. "
+                       "The file path should be relative to the project folder.");
         }
 
         props.add (new TextPropertyComponent (customXcodeResourceFoldersValue, "Custom Xcode Resource Folders", 8192, true),
@@ -195,14 +275,12 @@ public:
                    "This way you can specify them for OS X and iOS separately, and modify the content of the resource folders "
                    "without re-saving the Projucer project.");
 
+        if (getProject().isAudioPluginProject())
+            props.add (new ChoicePropertyComponent (duplicateAppExResourcesFolderValue, "Add Duplicate Resources Folder to App Extension"),
+                       "Disable this to prevent the Projucer from creating a duplicate resources folder for AUv3 app extensions.");
+
         if (iOS)
         {
-            if (getProject().getProjectType().isAudioPlugin())
-                props.add (new ChoicePropertyComponent (iosAppExtensionDuplicateResourcesFolderValue,
-                                                        "Don't Add Resources Folder to App Extension"),
-                           "Enable this to prevent the Projucer from creating a resources folder for AUv3 app extensions.");
-
-
             props.add (new ChoicePropertyComponent (iosDeviceFamilyValue, "Device Family",
                                                     { "iPhone", "iPad", "Universal" },
                                                     { "1",      "2",    "1,2" }),
@@ -229,20 +307,139 @@ public:
 
             props.add (new ChoicePropertyComponent (uiStatusBarHiddenValue, "Status Bar Hidden"),
                        "Enable this to disable the status bar in your app.");
-
-            props.add (new ChoicePropertyComponent (microphonePermissionNeededValue, "Microphone Access"),
-                       "Enable this to allow your app to use the microphone. "
-                       "The user of your app will be prompted to grant microphone access permissions.");
-
-            props.add (new TextPropertyComponentWithEnablement (microphonePermissionsTextValue, microphonePermissionNeededValue,
-                                                                "Microphone Access Text", 1024, false),
-                       "A short description of why your app requires microphone access.");
         }
         else if (projectType.isGUIApplication())
         {
             props.add (new TextPropertyComponent (documentExtensionsValue, "Document File Extensions", 128, false),
                        "A comma-separated list of file extensions for documents that your app can open. "
                        "Using a leading '.' is optional, and the extensions are not case-sensitive.");
+        }
+
+        if (isOSX())
+        {
+            props.add (new ChoicePropertyComponent (appSandboxValue, "Use App Sandbox"),
+                       "Enable this to use the app sandbox.");
+
+            props.add (new ChoicePropertyComponentWithEnablement (appSandboxInheritanceValue, appSandboxValue, "App Sandbox Inheritance"),
+                       "If app sandbox is enabled, this setting will configure a child process to inherit the sandbox of its parent. "
+                       "Note that if you enable this and have specified any other app sandbox entitlements below, the child process "
+                       "will fail to launch.");
+
+            std::vector<std::pair<String, String>> sandboxOptions
+            {
+                { "Network: Incoming Connections (Server)",         "network.server" },
+                { "Network: Outgoing Connections (Client)",         "network.client" },
+
+                { "Hardware: Camera",                               "device.camera" },
+                { "Hardware: Microphone",                           "device.microphone" },
+                { "Hardware: USB",                                  "device.usb" },
+                { "Hardware: Printing",                             "print" },
+                { "Hardware: Bluetooth",                            "device.bluetooth" },
+
+                { "App Data: Contacts",                             "personal-information.addressbook" },
+                { "App Data: Location",                             "personal-information.location" },
+                { "App Data: Calendar",                             "personal-information.calendars" },
+
+                { "File Access: User Selected File (Read Only)",    "files.user-selected.read-only" },
+                { "File Access: User Selected File (Read/Write)",   "files.user-selected.read-write" },
+                { "File Access: Downloads Folder (Read Only)",      "files.downloads.read-only" },
+                { "File Access: Downloads Folder (Read/Write)",     "files.downloads.read-write" },
+                { "File Access: Pictures Folder (Read Only)",       "files.pictures.read-only" },
+                { "File Access: Pictures Folder (Read/Write)",      "files.pictures.read-write" },
+                { "File Access: Music Folder (Read Only)",          "assets.music.read-only" },
+                { "File Access: Music Folder (Read/Write)",         "assets.music.read-write" },
+                { "File Access: Movies Folder (Read Only)",         "assets.movies.read-only" },
+                { "File Access: Movies Folder (Read/Write)",        "assets.movies.read-write" },
+
+                { "Temporary Exception: Audio Unit Hosting",                       "temporary-exception.audio-unit-host" },
+                { "Temporary Exception: Global Mach Service",                      "temporary-exception.mach-lookup.global-name" },
+                { "Temporary Exception: Global Mach Service Dynamic Registration", "temporary-exception.mach-register.global-name" },
+                { "Temporary Exception: Home Directory File Access (Read Only)",   "temporary-exception.files.home-relative-path.read-only" },
+                { "Temporary Exception: Home Directory File Access (Read/Write)",  "temporary-exception.files.home-relative-path.read-write" },
+                { "Temporary Exception: Absolute Path File Access (Read Only)",    "temporary-exception.files.absolute-path.read-only" },
+                { "Temporary Exception: Absolute Path File Access (Read/Write)",   "temporary-exception.files.absolute-path.read-write" },
+                { "Temporary Exception: IOKit User Client Class",                  "temporary-exception.iokit-user-client-class" },
+                { "Temporary Exception: Shared Preference Domain (Read Only)",     "temporary-exception.shared-preference.read-only" },
+                { "Temporary Exception: Shared Preference Domain (Read/Write)",    "temporary-exception.shared-preference.read-write" }
+            };
+
+            StringArray sandboxKeys;
+            Array<var> sanboxValues;
+
+            for (auto& opt : sandboxOptions)
+            {
+                sandboxKeys.add (opt.first);
+                sanboxValues.add ("com.apple.security." + opt.second);
+            }
+
+            props.add (new MultiChoicePropertyComponentWithEnablement (appSandboxOptionsValue,
+                                                                       appSandboxValue,
+                                                                       "App Sandbox Options",
+                                                                       sandboxKeys,
+                                                                       sanboxValues));
+
+            props.add (new ChoicePropertyComponent (hardenedRuntimeValue, "Use Hardened Runtime"),
+                       "Enable this to use the hardened runtime required for app notarization.");
+
+            std::vector<std::pair<String, String>> hardeningOptions
+            {
+                { "Runtime Exceptions: Allow Execution of JIT-compiled Code", "cs.allow-jit" },
+                { "Runtime Exceptions: Allow Unsigned Executable Memory",     "cs.allow-unsigned-executable-memory" },
+                { "Runtime Exceptions: Allow DYLD Environment Variables",     "cs.allow-dyld-environment-variables" },
+                { "Runtime Exceptions: Disable Library Validation",           "cs.disable-library-validation" },
+                { "Runtime Exceptions: Disable Executable Memory Protection", "cs.disable-executable-page-protection" },
+                { "Runtime Exceptions: Debugging Tool",                       "cs.debugger" },
+
+                { "Resource Access: Audio Input",                             "device.audio-input" },
+                { "Resource Access: Camera",                                  "device.camera" },
+                { "Resource Access: Location",                                "personal-information.location" },
+                { "Resource Access: Address Book",                            "personal-information.addressbook" },
+                { "Resource Access: Calendar",                                "personal-information.calendars" },
+                { "Resource Access: Photos Library",                          "personal-information.photos-library" },
+                { "Resource Access: Apple Events",                            "automation.apple-events" }
+            };
+
+            StringArray hardeningKeys;
+            Array<var> hardeningValues;
+
+            for (auto& opt : hardeningOptions)
+            {
+                hardeningKeys.add (opt.first);
+                hardeningValues.add ("com.apple.security." + opt.second);
+            }
+
+            props.add (new MultiChoicePropertyComponentWithEnablement (hardenedRuntimeOptionsValue,
+                                                                       hardenedRuntimeValue,
+                                                                       "Hardened Runtime Options",
+                                                                       hardeningKeys,
+                                                                       hardeningValues));
+        }
+
+        props.add (new ChoicePropertyComponent (microphonePermissionNeededValue, "Microphone Access"),
+                   "Enable this to allow your app to use the microphone. "
+                   "The user of your app will be prompted to grant microphone access permissions.");
+
+        props.add (new TextPropertyComponentWithEnablement (microphonePermissionsTextValue, microphonePermissionNeededValue,
+                                                            "Microphone Access Text", 1024, false),
+                   "A short description of why your app requires microphone access.");
+
+        props.add (new ChoicePropertyComponent (cameraPermissionNeededValue, "Camera Access"),
+                   "Enable this to allow your app to use the camera. "
+                   "The user of your app will be prompted to grant camera access permissions.");
+
+        props.add (new TextPropertyComponentWithEnablement (cameraPermissionTextValue, cameraPermissionNeededValue,
+                                                            "Camera Access Text", 1024, false),
+                   "A short description of why your app requires camera access.");
+
+        if (iOS)
+        {
+            props.add (new ChoicePropertyComponent (iosBluetoothPermissionNeededValue, "Bluetooth Access"),
+                       "Enable this to allow your app to use Bluetooth on iOS 13.0 and above. "
+                       "The user of your app will be prompted to grant Bluetooth access permissions.");
+
+            props.add (new TextPropertyComponentWithEnablement (iosBluetoothPermissionTextValue, iosBluetoothPermissionNeededValue,
+                                                                "Bluetooth Access Text", 1024, false),
+                       "A short description of why your app requires Bluetooth access.");
         }
 
         props.add (new ChoicePropertyComponent (iosInAppPurchasesValue, "In-App Purchases Capability"),
@@ -252,7 +449,8 @@ public:
         if (iOS)
         {
             props.add (new ChoicePropertyComponent (iosBackgroundAudioValue, "Audio Background Capability"),
-                       "Enable this to grant your app the capability to access audio when in background mode.");
+                       "Enable this to grant your app the capability to access audio when in background mode. "
+                       "This permission is required if your app creates a MIDI input or output device.");
 
             props.add (new ChoicePropertyComponent (iosBackgroundBleValue, "Bluetooth MIDI Background Capability"),
                        "Enable this to grant your app the capability to connect to Bluetooth LE devices when in background mode.");
@@ -280,9 +478,28 @@ public:
         props.add (new TextPropertyComponent (pListPrefixHeaderValue, "PList Prefix Header", 512, false),
                    "Header file containing definitions used in plist file (see PList Preprocess).");
 
-        props.add (new TextPropertyComponent (extraFrameworksValue, "Extra Frameworks", 2048, false),
-                   "A comma-separated list of extra frameworks that should be added to the build. "
-                   "(Don't include the .framework extension in the name)");
+        props.add (new TextPropertyComponent (extraFrameworksValue, "Extra System Frameworks", 2048, false),
+                   "A comma-separated list of extra system frameworks that should be added to the build. "
+                   "(Don't include the .framework extension in the name)"
+                   " The frameworks are expected to be located in /System/Library/Frameworks");
+
+        props.add (new TextPropertyComponent (frameworkSearchPathsValue, "Framework Search Paths", 8192, true),
+                   "A set of paths to search for custom frameworks (one per line).");
+
+        props.add (new TextPropertyComponent (extraCustomFrameworksValue, "Extra Custom Frameworks", 8192, true),
+                   "Paths to custom frameworks that should be added to the build (one per line). "
+                   "You will probably need to add an entry to the Framework Search Paths for each unique directory.");
+
+        props.add (new TextPropertyComponent (embeddedFrameworksValue, "Embedded Frameworks", 8192, true),
+                   "Paths to frameworks to be embedded with the app (one per line). "
+                   "If you are adding a framework here then you do not need to specify it in Extra Custom Frameworks too. "
+                   "You will probably need to add an entry to the Framework Search Paths for each unique directory.");
+
+        props.add (new TextPropertyComponent (subprojectsValue, "Xcode Subprojects", 8192, true),
+                   "Paths to Xcode projects that should be added to the build (one per line). "
+                   "The names of the required build products can be specified after a colon, comma separated, "
+                   "e.g. \"path/to/MySubProject.xcodeproj: MySubProject, OtherTarget\". "
+                   "If no build products are specified, all build products associated with a subproject will be added.");
 
         props.add (new TextPropertyComponent (prebuildCommandValue, "Pre-Build Shell Script", 32768, true),
                    "Some shell-script that will be run before a build starts.");
@@ -290,8 +507,12 @@ public:
         props.add (new TextPropertyComponent (postbuildCommandValue, "Post-Build Shell Script", 32768, true),
                    "Some shell-script that will be run after a build completes.");
 
+        props.add (new TextPropertyComponent (exporterBundleIdentifierValue, "Exporter Bundle Identifier", 256, false),
+                   "Use this to override the project bundle identifier for this exporter. "
+                   "This is useful if you want to use different bundle identifiers for Mac and iOS exporters in the same project.");
+
         props.add (new TextPropertyComponent (iosDevelopmentTeamIDValue, "Development Team ID", 10, false),
-                   "The Development Team ID to be used for setting up code-signing your iOS app. This is a ten-character "
+                   "The Development Team ID to be used for setting up code-signing your app. This is a ten-character "
                    "string (for example, \"S7B6T5XJ2Q\") that describes the distribution certificate Apple issued to you. "
                    "You can find this string in the OS X app Keychain Access under \"Certificates\".");
 
@@ -354,6 +575,10 @@ public:
 
         writeInfoPlistFiles();
 
+        // This forces the project to use the legacy build system to workaround Xcode 10 issues,
+        // hopefully these will be fixed in the future and this can be removed...
+        writeWorkspaceSettings();
+
         // Deleting the .rsrc files can be needed to force Xcode to update the version number.
         deleteRsrcFiles (getTargetFolder().getChildFile ("build"));
     }
@@ -402,9 +627,17 @@ public:
     //==============================================================================
     void initialiseDependencyPathValues() override
     {
-        vst3Path.referTo (Value (new DependencyPathValueSource (getSetting (Ids::vst3Folder), Ids::vst3Path, TargetOS::osx)));
-        aaxPath. referTo (Value (new DependencyPathValueSource (getSetting (Ids::aaxFolder),  Ids::aaxPath,  TargetOS::osx)));
-        rtasPath.referTo (Value (new DependencyPathValueSource (getSetting (Ids::rtasFolder), Ids::rtasPath, TargetOS::osx)));
+        vstLegacyPathValueWrapper.init ({ settings, Ids::vstLegacyFolder, nullptr },
+                                        getAppSettings().getStoredPath (Ids::vstLegacyPath, TargetOS::osx), TargetOS::osx);
+
+        vst3PathValueWrapper.init ({ settings, Ids::vst3Folder, nullptr },
+                                   getAppSettings().getStoredPath (Ids::vst3Path, TargetOS::osx), TargetOS::osx);
+
+        aaxPathValueWrapper.init ({ settings, Ids::aaxFolder, nullptr },
+                                  getAppSettings().getStoredPath (Ids::aaxPath,  TargetOS::osx), TargetOS::osx);
+
+        rtasPathValueWrapper.init ({ settings, Ids::rtasFolder, nullptr },
+                                   getAppSettings().getStoredPath (Ids::rtasPath, TargetOS::osx), TargetOS::osx);
     }
 
 protected:
@@ -416,13 +649,12 @@ protected:
             : BuildConfiguration (p, t, e),
               iOS (isIOS),
               osxSDKVersion                (config, Ids::osxSDK,                       getUndoManager()),
-              osxDeploymentTarget          (config, Ids::osxCompatibility,             getUndoManager(), String (osxVersionDefault) + " SDK"),
-              iosDeploymentTarget          (config, Ids::iosCompatibility,             getUndoManager(), iosVersionDefault),
+              osxDeploymentTarget          (config, Ids::osxCompatibility,             getUndoManager(), getSDKDisplayName (defaultDeploymentTarget)),
+              iosDeploymentTarget          (config, Ids::iosCompatibility,             getUndoManager(), iOSDefaultVersion),
               osxArchitecture              (config, Ids::osxArchitecture,              getUndoManager(), osxArch_Default),
               customXcodeFlags             (config, Ids::customXcodeFlags,             getUndoManager()),
               plistPreprocessorDefinitions (config, Ids::plistPreprocessorDefinitions, getUndoManager()),
-              cppStandardLibrary           (config, Ids::cppLibType,                   getUndoManager()),
-              codeSignIdentity             (config, Ids::codeSigningIdentity,          getUndoManager(), iOS ? "iPhone Developer" : "Mac Developer"),
+              codeSignIdentity             (config, Ids::codeSigningIdentity,          getUndoManager()),
               fastMathEnabled              (config, Ids::fastMath,                     getUndoManager()),
               stripLocalSymbolsEnabled     (config, Ids::stripLocalSymbols,            getUndoManager()),
               pluginBinaryCopyStepEnabled  (config, Ids::enablePluginBinaryCopyStep,   getUndoManager(), true),
@@ -430,7 +662,8 @@ protected:
               vst3BinaryLocation           (config, Ids::vst3BinaryLocation,           getUndoManager(), "$(HOME)/Library/Audio/Plug-Ins/VST3/"),
               auBinaryLocation             (config, Ids::auBinaryLocation,             getUndoManager(), "$(HOME)/Library/Audio/Plug-Ins/Components/"),
               rtasBinaryLocation           (config, Ids::rtasBinaryLocation,           getUndoManager(), "/Library/Application Support/Digidesign/Plug-Ins/"),
-              aaxBinaryLocation            (config, Ids::aaxBinaryLocation,            getUndoManager(), "/Library/Application Support/Avid/Audio/Plug-Ins/")
+              aaxBinaryLocation            (config, Ids::aaxBinaryLocation,            getUndoManager(), "/Library/Application Support/Avid/Audio/Plug-Ins/"),
+              unityPluginBinaryLocation    (config, Ids::unityPluginBinaryLocation,    getUndoManager())
         {
             updateOldPluginBinaryLocations();
             updateOldSDKDefaults();
@@ -438,40 +671,33 @@ protected:
             optimisationLevelValue.setDefault (isDebug() ? gccO0 : gccO3);
         }
 
-        //==========================================================================
+        //==============================================================================
         void createConfigProperties (PropertyListBuilder& props) override
         {
-            addXcodePluginInstallPathProperties (props);
+            if (project.isAudioPluginProject())
+                addXcodePluginInstallPathProperties (props);
+
+            addRecommendedLLVMCompilerWarningsProperty (props);
             addGCCOptimisationProperty (props);
 
             if (iOS)
             {
-                props.add (new ChoicePropertyComponent (iosDeploymentTarget, "iOS Deployment Target",
-                                                        { "7.0", "7.1", "8.0", "8.1", "8.2", "8.3", "8.4",
-                                                          "9.0", "9.1", "9.2", "9.3", "10.0", "10.1", "10.2", "10.3",
-                                                          "11.0" },
-                                                        { "7.0", "7.1", "8.0", "8.1", "8.2", "8.3", "8.4",
-                                                          "9.0", "9.1", "9.2", "9.3", "10.0", "10.1", "10.2", "10.3",
-                                                          "11.0" }),
+                Array<var> iOSVersionVars;
+
+                for (auto& s : iOSVersions)
+                    iOSVersionVars.add (s);
+
+                props.add (new ChoicePropertyComponent (iosDeploymentTarget, "iOS Deployment Target", iOSVersions, iOSVersionVars),
                            "The minimum version of iOS that the target binary will run on.");
             }
             else
             {
-                StringArray sdkVersionNames, osxVersionNames;
-                Array<var> versionValues;
+                props.add (new ChoicePropertyComponent (osxSDKVersion, "OSX Base SDK Version", getSDKChoiceList<StringArray> (oldestSDKVersion, true),
+                                                                                               getSDKChoiceList<Array<var>>  (oldestSDKVersion, true)),
+                           "The version of the macOS SDK to link against. If \"Default\" is selected then the Xcode default will be used.");
 
-                for (int ver = oldestSDKVersion; ver <= currentSDKVersion; ++ver)
-                {
-                    sdkVersionNames.add (getSDKName (ver));
-                    osxVersionNames.add (getOSXVersionName (ver));
-                    versionValues.add (getSDKName (ver));
-                }
-
-                props.add (new ChoicePropertyComponent (osxSDKVersion, "OSX Base SDK Version", sdkVersionNames, versionValues),
-                           "The version of OSX to link against in the Xcode build. If \"Default\" is selected then the field will be left "
-                           "empty and the Xcode default will be used.");
-
-                props.add (new ChoicePropertyComponent (osxDeploymentTarget, "OSX Deployment Target", osxVersionNames, versionValues),
+                props.add (new ChoicePropertyComponent (osxDeploymentTarget, "OSX Deployment Target", getSDKChoiceList<StringArray> (oldestDeploymentTarget, false),
+                                                                                                      getSDKChoiceList<Array<var>>  (oldestDeploymentTarget, true)),
                            "The minimum version of OSX that the target binary will be compatible with.");
 
                 props.add (new ChoicePropertyComponent (osxArchitecture, "OSX Architecture",
@@ -480,17 +706,12 @@ protected:
                            "The type of OSX binary that will be produced.");
             }
 
-            props.add (new TextPropertyComponent (customXcodeFlags, "Custom Xcode Flags", 8192, false),
+            props.add (new TextPropertyComponent (customXcodeFlags, "Custom Xcode Flags", 8192, true),
                        "A comma-separated list of custom Xcode setting flags which will be appended to the list of generated flags, "
                        "e.g. MACOSX_DEPLOYMENT_TARGET_i386 = 10.5, VALID_ARCHS = \"ppc i386 x86_64\"");
 
             props.add (new TextPropertyComponent (plistPreprocessorDefinitions, "PList Preprocessor Definitions", 2048, true),
                        "Preprocessor definitions used during PList preprocessing (see PList Preprocess).");
-
-            props.add (new ChoicePropertyComponent (cppStandardLibrary, "C++ Library",
-                                                    { "LLVM libc++", "GNU libstdc++" },
-                                                    { "libc++",      "libstdc++" }),
-                       "The type of C++ std lib that will be linked.");
 
             props.add (new TextPropertyComponent (codeSignIdentity, "Code-Signing Identity", 1024, false),
                        "The name of a code-signing identity for Xcode to apply.");
@@ -500,7 +721,10 @@ protected:
 
             props.add (new ChoicePropertyComponent (stripLocalSymbolsEnabled, "Strip Local Symbols"),
                        "Enable this to strip any locally defined symbols resulting in a smaller binary size. Enabling this "
-                       "will also remove any function names from crash logs. Must be disabled for static library projects.");
+                       "will also remove any function names from crash logs. Must be disabled for static library projects. "
+                       "Note that disabling this will not necessarily generate full debug symbols. For release configs, "
+                       "you will also need to add the following to the \"Custom Xcode Flags\" field: "
+                       "GCC_GENERATE_DEBUGGING_SYMBOLS = YES, STRIP_INSTALLED_PRODUCT = NO, COPY_PHASE_STRIP = NO");
         }
 
         String getModuleLibraryArchName() const override
@@ -508,13 +732,11 @@ protected:
             return "${CURRENT_ARCH}";
         }
 
-        //==========================================================================
+        //==============================================================================
         String getOSXArchitectureString() const                 { return osxArchitecture.get(); }
         String getPListPreprocessorDefinitionsString() const    { return plistPreprocessorDefinitions.get(); }
 
         bool isFastMathEnabled() const                          { return fastMathEnabled.get(); }
-
-        String getCPPStandardLibraryString() const              { return cppStandardLibrary.get(); }
 
         bool isStripLocalSymbolsEnabled() const                 { return stripLocalSymbolsEnabled.get(); }
 
@@ -524,7 +746,6 @@ protected:
         String getOSXDeploymentTargetString() const             { return osxDeploymentTarget.get(); }
 
         String getCodeSignIdentityString() const                { return codeSignIdentity.get(); }
-        bool isUsingDefaultCodeSignIdentity() const             { return codeSignIdentity.isUsingDefault(); }
 
         String getiOSDeploymentTargetString() const             { return iosDeploymentTarget.get(); }
 
@@ -534,30 +755,27 @@ protected:
         String getAUBinaryLocationString() const                { return auBinaryLocation.get(); }
         String getRTASBinaryLocationString() const              { return rtasBinaryLocation.get();}
         String getAAXBinaryLocationString() const               { return aaxBinaryLocation.get();}
+        String getUnityPluginBinaryLocationString() const       { return unityPluginBinaryLocation.get(); }
 
     private:
-        //==========================================================================
+        //==============================================================================
         bool iOS;
 
         ValueWithDefault osxSDKVersion, osxDeploymentTarget, iosDeploymentTarget, osxArchitecture,
-                         customXcodeFlags, plistPreprocessorDefinitions, cppStandardLibrary, codeSignIdentity,
+                         customXcodeFlags, plistPreprocessorDefinitions, codeSignIdentity,
                          fastMathEnabled, stripLocalSymbolsEnabled, pluginBinaryCopyStepEnabled,
-                         vstBinaryLocation, vst3BinaryLocation, auBinaryLocation, rtasBinaryLocation, aaxBinaryLocation;
+                         vstBinaryLocation, vst3BinaryLocation, auBinaryLocation, rtasBinaryLocation,
+                         aaxBinaryLocation, unityPluginBinaryLocation;
 
-        //==========================================================================
+        //==============================================================================
         void addXcodePluginInstallPathProperties (PropertyListBuilder& props)
         {
             auto isBuildingAnyPlugins = (project.shouldBuildVST() || project.shouldBuildVST3() || project.shouldBuildAU()
-                                         || project.shouldBuildRTAS() || project.shouldBuildAAX());
+                                         || project.shouldBuildRTAS() || project.shouldBuildAAX() || project.shouldBuildUnityPlugin());
 
             if (isBuildingAnyPlugins)
                 props.add (new ChoicePropertyComponent (pluginBinaryCopyStepEnabled, "Enable Plugin Copy Step"),
                            "Enable this to copy plugin binaries to the specified folder after building.");
-
-            if (project.shouldBuildVST())
-                props.add (new TextPropertyComponentWithEnablement (vstBinaryLocation, pluginBinaryCopyStepEnabled, "VST Binary Location",
-                                                                    1024, false),
-                           "The folder in which the compiled VST binary should be placed.");
 
             if (project.shouldBuildVST3())
                 props.add (new TextPropertyComponentWithEnablement (vst3BinaryLocation, pluginBinaryCopyStepEnabled, "VST3 Binary Location",
@@ -578,6 +796,16 @@ protected:
                 props.add (new TextPropertyComponentWithEnablement (aaxBinaryLocation, pluginBinaryCopyStepEnabled, "AAX Binary Location",
                                                                     1024, false),
                            "The folder in which the compiled AAX binary should be placed.");
+
+            if (project.shouldBuildUnityPlugin())
+                props.add (new TextPropertyComponentWithEnablement (unityPluginBinaryLocation, pluginBinaryCopyStepEnabled, "Unity Binary Location",
+                                                                    1024, false),
+                           "The folder in which the compiled Unity plugin binary and associated C# GUI script should be placed.");
+
+            if (project.shouldBuildVST())
+                props.add (new TextPropertyComponentWithEnablement (vstBinaryLocation, pluginBinaryCopyStepEnabled, "VST Binary Location",
+                                                                    1024, false),
+                           "The folder in which the compiled legacy VST binary should be placed.");
         }
 
         void updateOldPluginBinaryLocations()
@@ -600,7 +828,7 @@ protected:
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& v) const override
     {
-        return new XcodeBuildConfiguration (project, v, iOS, *this);
+        return *new XcodeBuildConfiguration (project, v, iOS, *this);
     }
 
 public:
@@ -729,6 +957,15 @@ public:
                     xcodeCopyToProductInstallPathAfterBuild = true;
                     break;
 
+                case UnityPlugIn:
+                    xcodePackageType = "BNDL";
+                    xcodeBundleSignature = "????";
+                    xcodeFileType = "wrapper.cfbundle";
+                    xcodeBundleExtension = ".bundle";
+                    xcodeProductType = "com.apple.product-type.bundle";
+                    xcodeCopyToProductInstallPathAfterBuild = true;
+                    break;
+
                 case SharedCodeTarget:
                     xcodeFileType = "archive.ar";
                     xcodeBundleExtension = ".a";
@@ -762,6 +999,11 @@ public:
             return String ("Info-") + String (getName()).replace (" ", "_") + String (".plist");
         }
 
+        String getEntitlementsFilename() const
+        {
+            return String (getName()).replace (" ", "_") + String (".entitlements");
+        }
+
         String xcodePackageType, xcodeBundleSignature, xcodeBundleExtension;
         String xcodeProductType, xcodeFileType;
         String xcodeOtherRezFlags, xcodeBundleIDSubPath;
@@ -784,14 +1026,14 @@ public:
         {
             Array<SourceFileInfo> result;
 
-            auto targetType = (owner.getProject().getProjectType().isAudioPlugin() ? type : SharedCodeTarget);
+            auto targetType = (owner.getProject().isAudioPluginProject() ? type : SharedCodeTarget);
 
             if (projectItem.isGroup())
             {
                 for (int i = 0; i < projectItem.getNumChildren(); ++i)
                     result.addArray (getSourceFilesInfo (projectItem.getChild (i)));
             }
-            else if (projectItem.shouldBeAddedToTargetProject()
+            else if (projectItem.shouldBeAddedToTargetProject() && projectItem.shouldBeAddedToTargetExporter (owner)
                      && owner.getProject().getTargetTypeFromFilePath (projectItem.getFile(), true) == targetType)
             {
                 SourceFileInfo info;
@@ -817,7 +1059,7 @@ public:
 
             if (ProjectExporter::BuildConfiguration::Ptr config = owner.getConfiguration(0))
             {
-                auto productName = owner.replacePreprocessorTokens (*config, config->getTargetBinaryNameString());
+                auto productName = owner.replacePreprocessorTokens (*config, config->getTargetBinaryNameString (type == UnityPlugIn));
 
                 if (xcodeFileType == "archive.ar")
                     productName = getStaticLibbedFilename (productName);
@@ -880,21 +1122,23 @@ public:
         {
             auto attributes = getID() + " = { ";
 
-            auto developmentTeamID = owner.getIosDevelopmentTeamIDString();
+            auto developmentTeamID = owner.getDevelopmentTeamIDString();
+
             if (developmentTeamID.isNotEmpty())
             {
                 attributes << "DevelopmentTeam = " << developmentTeamID << "; ";
                 attributes << "ProvisioningStyle = Automatic; ";
             }
 
-            auto appGroupsEnabled      = (owner.iOS && owner.isAppGroupsEnabled() ? 1 : 0);
+            auto appGroupsEnabled      = (owner.iOS && owner.isAppGroupsEnabled()) ? 1 : 0;
             auto inAppPurchasesEnabled = owner.isInAppPurchasesEnabled() ? 1 : 0;
             auto interAppAudioEnabled  = (owner.iOS
                                           && type == Target::StandalonePlugIn
                                           && owner.getProject().shouldEnableIAA()) ? 1 : 0;
 
             auto pushNotificationsEnabled = owner.isPushNotificationsEnabled() ? 1 : 0;
-            auto sandboxEnabled = (type == Target::AudioUnitv3PlugIn ? 1 : 0);
+            auto sandboxEnabled = ((type == Target::AudioUnitv3PlugIn) || owner.isAppSandboxEnabled()) ? 1 : 0;
+            auto hardendedRuntimeEnabled = owner.isHardenedRuntimeEnabled() ? 1 : 0;
 
             attributes << "SystemCapabilities = {";
             attributes << "com.apple.ApplicationGroups.iOS = { enabled = " << appGroupsEnabled << "; }; ";
@@ -902,6 +1146,7 @@ public:
             attributes << "com.apple.InterAppAudio = { enabled = " << interAppAudioEnabled << "; }; ";
             attributes << "com.apple.Push = { enabled = " << pushNotificationsEnabled << "; }; ";
             attributes << "com.apple.Sandbox = { enabled = " << sandboxEnabled << "; }; ";
+            attributes << "com.apple.HardenedRuntime = { enabled = " << hardendedRuntimeEnabled << "; }; ";
 
             if (owner.iOS && owner.isiCloudPermissionsEnabled())
                 attributes << "com.apple.iCloud = { enabled = 1; }; ";
@@ -945,11 +1190,15 @@ public:
         //==============================================================================
         bool shouldAddEntitlements() const
         {
-            if (owner.isPushNotificationsEnabled() || owner.isAppGroupsEnabled() || (owner.isiOS() && owner.isiCloudPermissionsEnabled()))
+            if (owner.isPushNotificationsEnabled()
+             || owner.isAppGroupsEnabled()
+             || owner.isAppSandboxEnabled()
+             || owner.isHardenedRuntimeEnabled()
+             || (owner.isiOS() && owner.isiCloudPermissionsEnabled()))
                 return true;
 
-            if (owner.project.getProjectType().isAudioPlugin()
-                && (   (owner.isOSX() && type == Target::AudioUnitv3PlugIn)
+            if (owner.project.isAudioPluginProject()
+                && ((owner.isOSX() && type == Target::AudioUnitv3PlugIn)
                     || (owner.isiOS() && type == Target::StandalonePlugIn && owner.getProject().shouldEnableIAA())))
                 return true;
 
@@ -958,7 +1207,9 @@ public:
 
         String getBundleIdentifier() const
         {
-            auto bundleIdentifier = owner.project.getBundleIdentifierString();
+            auto exporterBundleIdentifier = owner.exporterBundleIdentifierValue.get().toString();
+            auto bundleIdentifier = exporterBundleIdentifier.isNotEmpty() ? exporterBundleIdentifier
+                                                                          : owner.project.getBundleIdentifierString();
 
             if (xcodeBundleIDSubPath.isNotEmpty())
             {
@@ -980,16 +1231,13 @@ public:
             {
                 // the aggregate target needs to have the deployment target set for
                 // pre-/post-build scripts
-
-                String sdkRoot;
-                s.set ("MACOSX_DEPLOYMENT_TARGET", getOSXDeploymentTarget (config, &sdkRoot));
-
-                if (sdkRoot.isNotEmpty())
-                    s.set ("SDKROOT", sdkRoot);
+                s.set ("MACOSX_DEPLOYMENT_TARGET", getOSXDeploymentTarget (config.getOSXDeploymentTargetString()));
+                s.set ("SDKROOT", getOSXSDKVersion (config.getOSXSDKVersionString()));
 
                 return s;
             }
 
+            s.set ("PRODUCT_NAME", owner.replacePreprocessorTokens (config, config.getTargetBinaryNameString (type == UnityPlugIn)).quoted());
             s.set ("PRODUCT_BUNDLE_IDENTIFIER", getBundleIdentifier());
 
             auto arch = (! owner.isiOS() && type == Target::AudioUnitv3PlugIn) ? osxArch_64Bit
@@ -1000,8 +1248,15 @@ public:
             else if (arch == osxArch_64BitUniversal)   s.set ("ARCHS", "\"$(ARCHS_STANDARD_32_64_BIT)\"");
             else if (arch == osxArch_64Bit)            s.set ("ARCHS", "\"$(ARCHS_STANDARD_64_BIT)\"");
 
-            s.set ("HEADER_SEARCH_PATHS", String ("(") + getHeaderSearchPaths (config).joinIntoString (", ") + ", \"$(inherited)\")");
+            StringArray headerPaths (getHeaderSearchPaths (config));
+            headerPaths.add ("\"$(inherited)\"");
+            s.set ("HEADER_SEARCH_PATHS", indentParenthesisedList (headerPaths, 1));
             s.set ("USE_HEADERMAP", String (static_cast<bool> (config.exporter.settings.getProperty ("useHeaderMap")) ? "YES" : "NO"));
+
+            auto frameworkSearchPaths = getFrameworkSearchPaths (config);
+
+            if (! frameworkSearchPaths.isEmpty())
+                s.set ("FRAMEWORK_SEARCH_PATHS", String ("(") + frameworkSearchPaths.joinIntoString (", ") + ", \"$(inherited)\")");
 
             s.set ("GCC_OPTIMIZATION_LEVEL", config.getGCCOptimisationFlag());
 
@@ -1029,7 +1284,7 @@ public:
                 }
 
                 if (defsList.size() > 0)
-                    s.set ("INFOPLIST_PREPROCESSOR_DEFINITIONS", indentParenthesisedList (defsList));
+                    s.set ("INFOPLIST_PREPROCESSOR_DEFINITIONS", indentParenthesisedList (defsList, 1));
             }
 
             if (config.isLinkTimeOptimisationEnabled())
@@ -1038,10 +1293,13 @@ public:
             if (config.isFastMathEnabled())
                 s.set ("GCC_FAST_MATH", "YES");
 
-            auto extraFlags = owner.replacePreprocessorTokens (config, owner.getExtraCompilerFlagsString()).trim();
 
-            if (extraFlags.isNotEmpty())
-                s.set ("OTHER_CPLUSPLUSFLAGS", extraFlags.quoted());
+            auto flags = (config.getRecommendedCompilerWarningFlags().joinIntoString (" ")
+                             + " " + owner.getExtraCompilerFlagsString()).trim();
+            flags = owner.replacePreprocessorTokens (config, flags);
+
+            if (flags.isNotEmpty())
+                s.set ("OTHER_CPLUSPLUSFLAGS", flags.quoted());
 
             auto installPath = getInstallPathForConfiguration (config);
 
@@ -1051,6 +1309,12 @@ public:
             if (installPath.isNotEmpty())
             {
                 s.set ("INSTALL_PATH", installPath.quoted());
+
+                if (type == Target::SharedCodeTarget)
+                    s.set ("SKIP_INSTALL", "YES");
+
+                if (! owner.embeddedFrameworkIDs.isEmpty())
+                    s.set ("LD_RUNPATH_SEARCH_PATHS", "\"$(inherited) @executable_path/Frameworks @executable_path/../Frameworks\"");
 
                 if (xcodeCopyToProductInstallPathAfterBuild)
                 {
@@ -1084,40 +1348,38 @@ public:
 
             s.set ("CONFIGURATION_BUILD_DIR", addQuotesIfRequired (configurationBuildDir));
 
+            if (owner.isHardenedRuntimeEnabled())
+                s.set ("ENABLE_HARDENED_RUNTIME", "YES");
+
             String gccVersion ("com.apple.compilers.llvm.clang.1_0");
 
             if (owner.iOS)
             {
                 s.set ("ASSETCATALOG_COMPILER_APPICON_NAME", "AppIcon");
-                s.set ("ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME", "LaunchImage");
+
+                if (! owner.shouldAddStoryboardToProject())
+                    s.set ("ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME", "LaunchImage");
             }
             else
             {
-                String sdkRoot;
-                s.set ("MACOSX_DEPLOYMENT_TARGET", getOSXDeploymentTarget (config, &sdkRoot));
-
-                if (sdkRoot.isNotEmpty())
-                    s.set ("SDKROOT", sdkRoot);
-
-                s.set ("MACOSX_DEPLOYMENT_TARGET_ppc", "10.4");
-                s.set ("SDKROOT_ppc", "macosx10.5");
+                s.set ("MACOSX_DEPLOYMENT_TARGET", getOSXDeploymentTarget (config.getOSXDeploymentTargetString()));
             }
 
             s.set ("GCC_VERSION", gccVersion);
             s.set ("CLANG_LINK_OBJC_RUNTIME", "NO");
 
-            if (isUsingCodeSigning (config))
-            {
-                s.set (owner.iOS ? "\"CODE_SIGN_IDENTITY[sdk=iphoneos*]\"" : "CODE_SIGN_IDENTITY",
-                       config.getCodeSignIdentityString().quoted());
-                s.set ("PROVISIONING_PROFILE_SPECIFIER", "\"\"");
-            }
+            auto codeSigningIdentity = owner.getCodeSigningIdentity (config);
+            s.set (owner.iOS ? "\"CODE_SIGN_IDENTITY[sdk=iphoneos*]\"" : "CODE_SIGN_IDENTITY",
+                   codeSigningIdentity.quoted());
 
-            if (owner.getIosDevelopmentTeamIDString().isNotEmpty())
-                s.set ("DEVELOPMENT_TEAM", owner.getIosDevelopmentTeamIDString());
+            if (codeSigningIdentity.isNotEmpty())
+                s.set ("PROVISIONING_PROFILE_SPECIFIER", "\"\"");
+
+            if (owner.getDevelopmentTeamIDString().isNotEmpty())
+                s.set ("DEVELOPMENT_TEAM", owner.getDevelopmentTeamIDString());
 
             if (shouldAddEntitlements())
-                s.set ("CODE_SIGN_ENTITLEMENTS", owner.getEntitlementsFileName().quoted());
+                s.set ("CODE_SIGN_ENTITLEMENTS", getEntitlementsFilename().quoted());
 
             {
                 auto cppStandard = owner.project.getCppStandardString();
@@ -1129,8 +1391,7 @@ public:
                                                                                               : "c++") + cppStandard).quoted());
             }
 
-            if (config.getCPPStandardLibraryString().isNotEmpty())
-                s.set ("CLANG_CXX_LIBRARY", config.getCPPStandardLibraryString().quoted());
+            s.set ("CLANG_CXX_LIBRARY", "\"libc++\"");
 
             s.set ("COMBINE_HIDPI_IMAGES", "YES");
 
@@ -1146,12 +1407,14 @@ public:
 
                 if (librarySearchPaths.size() > 0)
                 {
-                    String libPaths ("(\"$(inherited)\"");
+                    StringArray libPaths;
+                    libPaths.add ("\"$(inherited)\"");
 
                     for (auto& p : librarySearchPaths)
-                        libPaths += ", \"\\\"" + p + "\\\"\"";
+                        libPaths.add ("\"\\\"" + p + "\\\"\"");
 
-                    s.set ("LIBRARY_SEARCH_PATHS", libPaths + ")");
+                    s.set ("LIBRARY_SEARCH_PATHS", indentParenthesisedList (libPaths, 1));
+
                 }
             }
 
@@ -1201,7 +1464,7 @@ public:
                 defsList.add ("\"" + def + "\"");
             }
 
-            s.set ("GCC_PREPROCESSOR_DEFINITIONS", indentParenthesisedList (defsList));
+            s.set ("GCC_PREPROCESSOR_DEFINITIONS", indentParenthesisedList (defsList, 1));
 
             StringArray customFlags;
             customFlags.addTokens (config.getCustomXcodeFlagsString(), ",", "\"'");
@@ -1227,6 +1490,7 @@ public:
                 case AudioUnitPlugIn:   return config.isPluginBinaryCopyStepEnabled() ? config.getAUBinaryLocationString() : String();
                 case RTASPlugIn:        return config.isPluginBinaryCopyStepEnabled() ? config.getRTASBinaryLocationString() : String();
                 case AAXPlugIn:         return config.isPluginBinaryCopyStepEnabled() ? config.getAAXBinaryLocationString() : String();
+                case UnityPlugIn:       return config.isPluginBinaryCopyStepEnabled() ? config.getUnityPluginBinaryLocationString() : String();
                 case SharedCodeTarget:  return owner.isiOS() ? "@executable_path/Frameworks" : "@executable_path/../Frameworks";
                 default:                return {};
             }
@@ -1238,36 +1502,39 @@ public:
             if (getTargetFileType() == pluginBundle)
                 flags.add (owner.isiOS() ? "-bitcode_bundle" : "-bundle");
 
-            Array<RelativePath> extraLibs;
-
-            addExtraLibsForTargetType (config, extraLibs);
-
-            for (auto& lib : extraLibs)
+            if (type != Target::SharedCodeTarget)
             {
-                flags.add (getLinkerFlagForLib (lib.getFileNameWithoutExtension()));
-                librarySearchPaths.add (owner.getSearchPathForStaticLibrary (lib));
-            }
+                Array<RelativePath> extraLibs;
 
-            if (owner.project.getProjectType().isAudioPlugin() && type != Target::SharedCodeTarget)
-            {
-                if (owner.getTargetOfType (Target::SharedCodeTarget) != nullptr)
+                addExtraLibsForTargetType (config, extraLibs);
+
+                for (auto& lib : extraLibs)
                 {
-                    auto productName = getStaticLibbedFilename (owner.replacePreprocessorTokens (config, config.getTargetBinaryNameString()));
-
-                    RelativePath sharedCodelib (productName, RelativePath::buildTargetFolder);
-                    flags.add (getLinkerFlagForLib (sharedCodelib.getFileNameWithoutExtension()));
+                    flags.add (getLinkerFlagForLib (lib.getFileNameWithoutExtension()));
+                    librarySearchPaths.add (owner.getSearchPathForStaticLibrary (lib));
                 }
+
+                if (owner.project.isAudioPluginProject())
+                {
+                    if (owner.getTargetOfType (Target::SharedCodeTarget) != nullptr)
+                    {
+                        auto productName = getStaticLibbedFilename (owner.replacePreprocessorTokens (config, config.getTargetBinaryNameString()));
+
+                        RelativePath sharedCodelib (productName, RelativePath::buildTargetFolder);
+                        flags.add (getLinkerFlagForLib (sharedCodelib.getFileNameWithoutExtension()));
+                    }
+                }
+
+                flags.add (owner.getExternalLibraryFlags (config));
+
+                auto libs = owner.xcodeLibs;
+                libs.addArray (xcodeLibs);
+
+                for (auto& l : libs)
+                    flags.add (getLinkerFlagForLib (l));
             }
 
             flags.add (owner.replacePreprocessorTokens (config, owner.getExtraLinkerFlagsString()));
-            flags.add (owner.getExternalLibraryFlags (config));
-
-            auto libs = owner.xcodeLibs;
-            libs.addArray (xcodeLibs);
-
-            for (auto& l : libs)
-                flags.add (getLinkerFlagForLib (l));
-
             flags = getCleanedStringArray (flags);
         }
 
@@ -1277,24 +1544,43 @@ public:
             if (! shouldCreatePList())
                 return;
 
-            ScopedPointer<XmlElement> plist (XmlDocument::parse (owner.getPListToMergeString()));
+            auto plist = parseXML (owner.getPListToMergeString());
 
             if (plist == nullptr || ! plist->hasTagName ("plist"))
-                plist = new XmlElement ("plist");
+                plist.reset (new XmlElement ("plist"));
 
             auto* dict = plist->getChildByName ("dict");
 
             if (dict == nullptr)
                 dict = plist->createNewChildElement ("dict");
 
+            if (owner.isMicrophonePermissionEnabled())
+                addPlistDictionaryKey (dict, "NSMicrophoneUsageDescription", owner.getMicrophonePermissionsTextString());
+
+            if (owner.isCameraPermissionEnabled())
+                addPlistDictionaryKey (dict, "NSCameraUsageDescription", owner.getCameraPermissionTextString());
+
             if (owner.iOS)
             {
+                if (owner.isBluetoothPermissionEnabled())
+                {
+                    addPlistDictionaryKey (dict, "NSBluetoothAlwaysUsageDescription", owner.getBluetoothPermissionTextString());
+                    addPlistDictionaryKey (dict, "NSBluetoothPeripheralUsageDescription", owner.getBluetoothPermissionTextString()); // needed for pre iOS 13.0
+                }
+
                 addPlistDictionaryKeyBool (dict, "LSRequiresIPhoneOS", true);
-                if (owner.isMicrophonePermissionEnabled())
-                    addPlistDictionaryKey (dict, "NSMicrophoneUsageDescription", owner.getMicrophonePermissionsTextString());
 
                 if (type != AudioUnitv3PlugIn)
                     addPlistDictionaryKeyBool (dict, "UIViewControllerBasedStatusBarAppearance", false);
+
+                if (owner.shouldAddStoryboardToProject())
+                {
+                    auto customStoryboard = owner.getCustomLaunchStoryboardString();
+
+                    addPlistDictionaryKey (dict, "UILaunchStoryboardName", customStoryboard.isNotEmpty() ? customStoryboard.fromLastOccurrenceOf ("/", false, false)
+                                                                                                                           .upToLastOccurrenceOf (".storyboard", false, false)
+                                                                                                         : owner.getDefaultLaunchStoryboardName());
+                }
             }
 
             addPlistDictionaryKey (dict, "CFBundleExecutable",          "${EXECUTABLE_NAME}");
@@ -1314,8 +1600,8 @@ public:
             addPlistDictionaryKey (dict, "NSHumanReadableCopyright",    owner.project.getCompanyCopyrightString());
             addPlistDictionaryKeyBool (dict, "NSHighResolutionCapable", true);
 
-            auto documentExtensions = StringArray::fromTokens (replacePreprocessorDefs (owner.getAllPreprocessorDefs(), owner.settings ["documentExtensions"]),
-                                                               ",", {});
+            auto documentExtensions = StringArray::fromTokens (replacePreprocessorDefs (owner.getAllPreprocessorDefs(),
+                                                                                        owner.getDocumentExtensionsString()), ",", {});
             documentExtensions.trim();
             documentExtensions.removeEmptyStrings (true);
 
@@ -1390,8 +1676,9 @@ public:
                 dict->addChildElement (new XmlElement (e));
 
             MemoryOutputStream mo;
-            plist->writeToStream (mo, "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
-
+            XmlElement::TextFormat format;
+            format.dtd = "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">";
+            plist->writeTo (mo, format);
             overwriteFileIfDifferentOrThrow (infoPlistFile, mo);
         }
 
@@ -1458,13 +1745,29 @@ public:
         }
 
         //==============================================================================
+        void sanitiseAndEscapeSearchPaths (const BuildConfiguration& config, StringArray& paths) const
+        {
+            paths = getCleanedStringArray (paths);
+
+            for (auto& path : paths)
+            {
+                // Xcode 10 can't deal with search paths starting with "~" so we need to replace them here...
+                path = owner.replacePreprocessorTokens (config, sanitisePath (path));
+
+                if (path.containsChar (' '))
+                    path = "\"\\\"" + path + "\\\"\""; // crazy double quotes required when there are spaces..
+                else
+                    path = "\"" + path + "\"";
+            }
+        }
+
         StringArray getHeaderSearchPaths (const BuildConfiguration& config) const
         {
             StringArray paths (owner.extraSearchPaths);
             paths.addArray (config.getHeaderSearchPaths());
             paths.addArray (getTargetExtraHeaderSearchPaths());
 
-            if (owner.project.getModules().isModuleEnabled ("juce_audio_plugin_client"))
+            if (owner.project.getEnabledModules().isModuleEnabled ("juce_audio_plugin_client"))
             {
                 // Needed to compile .r files
                 paths.add (owner.getModuleFolderRelativeToProject ("juce_audio_plugin_client")
@@ -1472,18 +1775,14 @@ public:
                                 .toUnixStyle());
             }
 
-            paths = getCleanedStringArray (paths);
+            sanitiseAndEscapeSearchPaths (config, paths);
+            return paths;
+        }
 
-            for (auto& s : paths)
-            {
-                s = owner.replacePreprocessorTokens (config, s);
-
-                if (s.containsChar (' '))
-                    s = "\"\\\"" + s + "\\\"\""; // crazy double quotes required when there are spaces..
-                else
-                    s = "\"" + s + "\"";
-            }
-
+        StringArray getFrameworkSearchPaths (const BuildConfiguration& config) const
+        {
+            auto paths = getSearchPathsFromString (owner.getFrameworkSearchPathsString());
+            sanitiseAndEscapeSearchPaths (config, paths);
             return paths;
         }
 
@@ -1493,9 +1792,10 @@ public:
         {
             xcodeOtherRezFlags = "-d ppc_$ppc -d i386_$i386 -d ppc64_$ppc64 -d x86_64_$x86_64"
                                  " -I /System/Library/Frameworks/CoreServices.framework/Frameworks/CarbonCore.framework/Versions/A/Headers"
-                                 " -I \\\"$(DEVELOPER_DIR)/Extras/CoreAudio/AudioUnits/AUPublic/AUBase\\\"";
+                                 " -I \\\"$(DEVELOPER_DIR)/Extras/CoreAudio/AudioUnits/AUPublic/AUBase\\\""
+                                 " -I \\\"$(DEVELOPER_DIR)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/AudioUnit.framework/Headers\\\"";
 
-            xcodeFrameworks.addTokens ("AudioUnit CoreAudioKit", false);
+            xcodeFrameworks.addArray ({ "AudioUnit", "CoreAudioKit" });
 
             XmlElement plistKey ("key");
             plistKey.addTextElement ("AudioComponents");
@@ -1523,16 +1823,29 @@ public:
             addPlistDictionaryKey (dict, "subtype", pluginSubType);
             addPlistDictionaryKeyInt (dict, "version", owner.project.getVersionAsHexInteger());
 
+            if (owner.project.isAUSandBoxSafe())
+            {
+                addPlistDictionaryKeyBool (dict, "sandboxSafe", true);
+            }
+            else
+            {
+                dict->createNewChildElement ("key")->addTextElement ("resourceUsage");
+                auto* resourceUsageDict = dict->createNewChildElement ("dict");
+
+                addPlistDictionaryKeyBool (resourceUsageDict, "network.client", true);
+                addPlistDictionaryKeyBool (resourceUsageDict, "temporary-exception.files.all.read-write", true);
+            }
+
             xcodeExtraPListEntries.add (plistKey);
             xcodeExtraPListEntries.add (plistEntry);
         }
 
         void addExtraAudioUnitv3PlugInTargetSettings()
         {
-            if (owner.isiOS())
-                xcodeFrameworks.addTokens ("CoreAudioKit AVFoundation", false);
-            else
-                xcodeFrameworks.addTokens ("AudioUnit CoreAudioKit AVFoundation", false);
+            xcodeFrameworks.addArray ({ "AVFoundation", "CoreAudioKit" });
+
+            if (owner.isOSX())
+                xcodeFrameworks.add ("AudioUnit");
 
             XmlElement plistKey ("key");
             plistKey.addTextElement ("NSExtension");
@@ -1573,18 +1886,16 @@ public:
         {
             if (type == AAXPlugIn)
             {
-                 auto aaxLibsFolder
-                    = RelativePath (owner.getAAXPathValue().toString(), RelativePath::projectFolder)
-                        .getChildFile ("Libs");
+                auto aaxLibsFolder = RelativePath (owner.getAAXPathString(), RelativePath::projectFolder).getChildFile ("Libs");
 
-                String libraryPath (config.isDebug() ? "Debug/libAAXLibrary" : "Release/libAAXLibrary");
-                libraryPath += (isUsingClangCppLibrary (config) ? "_libcpp.a" : ".a");
+                String libraryPath (config.isDebug() ? "Debug" : "Release");
+                libraryPath += "/libAAXLibrary_libcpp.a";
 
                 extraLibs.add   (aaxLibsFolder.getChildFile (libraryPath));
             }
             else if (type == RTASPlugIn)
             {
-                RelativePath rtasFolder (owner.getRTASPathValue().toString(), RelativePath::projectFolder);
+                RelativePath rtasFolder (owner.getRTASPathString(), RelativePath::projectFolder);
 
                 extraLibs.add (rtasFolder.getChildFile ("MacBag/Libs/Debug/libPluginLibrary.a"));
                 extraLibs.add (rtasFolder.getChildFile ("MacBag/Libs/Release/libPluginLibrary.a"));
@@ -1597,7 +1908,7 @@ public:
 
             if (type == RTASPlugIn)
             {
-                RelativePath rtasFolder (owner.getRTASPathValue().toString(), RelativePath::projectFolder);
+                RelativePath rtasFolder (owner.getRTASPathString(), RelativePath::projectFolder);
 
                 targetExtraSearchPaths.add ("$(DEVELOPER_DIR)/Headers/FlatCarbon");
                 targetExtraSearchPaths.add ("$(SDKROOT)/Developer/Headers/FlatCarbon");
@@ -1639,50 +1950,15 @@ public:
             return targetExtraSearchPaths;
         }
 
-        bool isUsingClangCppLibrary (const BuildConfiguration& config) const
+        String getOSXDeploymentTarget (const String& deploymentTarget) const
         {
-            if (auto xcodeConfig = dynamic_cast<const XcodeBuildConfiguration*> (&config))
-            {
-                auto configValue = xcodeConfig->getCPPStandardLibraryString();
+            auto minVersion = (type == Target::AudioUnitv3PlugIn ? minimumAUv3SDKVersion : oldestDeploymentTarget);
 
-                if (configValue.isNotEmpty())
-                    return (configValue == "libc++");
+            for (int v = minVersion; v <= currentSDKVersion; ++v)
+                if (deploymentTarget == getSDKDisplayName (v))
+                    return getVersionName (v);
 
-                auto minorOSXDeploymentTarget = getOSXDeploymentTarget (*xcodeConfig)
-                                               .fromLastOccurrenceOf (".", false, false)
-                                               .getIntValue();
-
-                return (minorOSXDeploymentTarget > 8);
-            }
-
-            return false;
-        }
-
-        String getOSXDeploymentTarget (const XcodeBuildConfiguration& config, String* sdkRoot = nullptr) const
-        {
-            auto sdk = config.getOSXSDKVersionString();
-            auto sdkCompat = config.getOSXDeploymentTargetString();
-
-            // The AUv3 target always needs to be at least 10.11
-            int oldestAllowedDeploymentTarget = (type == Target::AudioUnitv3PlugIn ? minimumAUv3SDKVersion
-                                                                                   : oldestSDKVersion);
-
-            // if the user doesn't set it, then use the last known version that works well with JUCE
-            String deploymentTarget (osxVersionDefault);
-
-            for (int ver = oldestAllowedDeploymentTarget; ver <= currentSDKVersion; ++ver)
-            {
-                if (sdk.isNotEmpty() && (sdk == getSDKName (ver) && sdkRoot != nullptr)) *sdkRoot = String ("macosx10." + String (ver));
-                if (sdkCompat == getSDKName (ver))                                       deploymentTarget = "10." + String (ver);
-            }
-
-            return deploymentTarget;
-        }
-
-        bool isUsingCodeSigning (const XcodeBuildConfiguration& config) const
-        {
-            return (! config.isUsingDefaultCodeSignIdentity())
-                     || owner.getIosDevelopmentTeamIDString().isNotEmpty();
+            return getVersionName (minVersion);
         }
 
         //==============================================================================
@@ -1703,18 +1979,26 @@ private:
 
     mutable OwnedArray<ValueTree> pbxBuildFiles, pbxFileReferences, pbxGroups, misc, projectConfigs, targetConfigs;
     mutable StringArray resourceIDs, sourceIDs, targetIDs;
-    mutable StringArray frameworkFileIDs, rezFileIDs, resourceFileRefs;
+    mutable StringArray frameworkFileIDs, embeddedFrameworkIDs, rezFileIDs, resourceFileRefs, subprojectFileIDs;
+    mutable Array<std::pair<String, String>> subprojectReferences;
     mutable File menuNibFile, iconFile;
     mutable StringArray buildProducts;
 
     const bool iOS;
 
-    ValueWithDefault customPListValue, pListPrefixHeaderValue, pListPreprocessValue, extraFrameworksValue, postbuildCommandValue,
-                     prebuildCommandValue, iosAppExtensionDuplicateResourcesFolderValue, iosDeviceFamilyValue, iPhoneScreenOrientationValue,
-                     iPadScreenOrientationValue, customXcodeResourceFoldersValue, customXcassetsFolderValue, microphonePermissionNeededValue, microphonePermissionsTextValue,
+    ValueWithDefault customPListValue, pListPrefixHeaderValue, pListPreprocessValue,
+                     subprojectsValue,
+                     extraFrameworksValue, frameworkSearchPathsValue, extraCustomFrameworksValue, embeddedFrameworksValue,
+                     postbuildCommandValue, prebuildCommandValue,
+                     duplicateAppExResourcesFolderValue, iosDeviceFamilyValue, iPhoneScreenOrientationValue,
+                     iPadScreenOrientationValue, customXcodeResourceFoldersValue, customXcassetsFolderValue,
+                     appSandboxValue, appSandboxInheritanceValue, appSandboxOptionsValue,
+                     hardenedRuntimeValue, hardenedRuntimeOptionsValue,
+                     microphonePermissionNeededValue, microphonePermissionsTextValue, cameraPermissionNeededValue, cameraPermissionTextValue, iosBluetoothPermissionNeededValue, iosBluetoothPermissionTextValue,
                      uiFileSharingEnabledValue, uiSupportsDocumentBrowserValue, uiStatusBarHiddenValue, documentExtensionsValue, iosInAppPurchasesValue,
                      iosBackgroundAudioValue, iosBackgroundBleValue, iosPushNotificationsValue, iosAppGroupsValue, iCloudPermissionsValue,
-                     iosDevelopmentTeamIDValue, iosAppGroupsIDValue, keepCustomXcodeSchemesValue, useHeaderMapValue;
+                     iosDevelopmentTeamIDValue, iosAppGroupsIDValue, keepCustomXcodeSchemesValue, useHeaderMapValue, customLaunchStoryboardValue,
+                     exporterBundleIdentifierValue;
 
     static String sanitisePath (const String& path)
     {
@@ -1736,14 +2020,37 @@ private:
     {
         prepareTargets();
 
+        // Must be called before adding embedded frameworks, as we want to
+        // embed any frameworks found in subprojects.
+        addSubprojects();
+
         addFrameworks();
+        addCustomFrameworks();
+        addEmbeddedFrameworks();
+
         addCustomResourceFolders();
         addPlistFileReferences();
 
         if (iOS && ! projectType.isStaticLibrary())
+        {
             addXcassets();
+
+            if (shouldAddStoryboardToProject())
+            {
+                auto customLaunchStoryboard = getCustomLaunchStoryboardString();
+
+                if (customLaunchStoryboard.isEmpty())
+                    writeDefaultLaunchStoryboardFile();
+                else if (getProject().getProjectFolder().getChildFile (customLaunchStoryboard).existsAsFile())
+                    addLaunchStoryboardFileReference (RelativePath (customLaunchStoryboard, RelativePath::projectFolder)
+                                                          .rebased (getProject().getProjectFolder(), getTargetFolder(), RelativePath::buildTargetFolder)
+                                                          .toUnixStyle());
+            }
+        }
         else
+        {
             addNibFiles();
+        }
 
         addIcons();
         addBuildConfigurations();
@@ -1844,9 +2151,9 @@ private:
 
     void addFilesAndGroupsToProject (StringArray& topLevelGroupIDs) const
     {
-        auto entitlements = getEntitlements();
-        if (entitlements.size() > 0)
-            topLevelGroupIDs.add (addEntitlementsFile (entitlements));
+        for (auto* target : targets)
+            if (target->shouldAddEntitlements())
+                addEntitlementsFile (*target);
 
         for (auto& group : getAllGroups())
         {
@@ -1862,22 +2169,29 @@ private:
 
     void addExtraGroupsToProject (StringArray& topLevelGroupIDs) const
     {
-        { // Add 'resources' group
+        {
             auto resourcesGroupID = createID ("__resources");
             addGroup (resourcesGroupID, "Resources", resourceFileRefs);
             topLevelGroupIDs.add (resourcesGroupID);
         }
 
-        { // Add 'frameworks' group
+        {
             auto frameworksGroupID = createID ("__frameworks");
             addGroup (frameworksGroupID, "Frameworks", frameworkFileIDs);
             topLevelGroupIDs.add (frameworksGroupID);
         }
 
-        { // Add 'products' group
+        {
             auto productsGroupID = createID ("__products");
             addGroup (productsGroupID, "Products", buildProducts);
             topLevelGroupIDs.add (productsGroupID);
+        }
+
+        if (! subprojectFileIDs.isEmpty())
+        {
+            auto subprojectLibrariesGroupID = createID ("__subprojects");
+            addGroup (subprojectLibrariesGroupID, "Subprojects", subprojectFileIDs);
+            topLevelGroupIDs.add (subprojectLibrariesGroupID);
         }
     }
 
@@ -1908,8 +2222,7 @@ private:
 
             if (target->type != XcodeTarget::AggregateTarget)
             {
-                auto skipAUv3 = (target->type == XcodeTarget::AudioUnitv3PlugIn
-                                 && ! shouldDuplicateResourcesFolderForAppExtension());
+                auto skipAUv3 = (target->type == XcodeTarget::AudioUnitv3PlugIn && ! shouldDuplicateAppExResourcesFolder());
 
                 if (! projectType.isStaticLibrary() && target->type != XcodeTarget::SharedCodeTarget && ! skipAUv3)
                     target->addBuildPhase ("PBXResourcesBuildPhase", resourceIDs);
@@ -1923,7 +2236,7 @@ private:
                 auto sourceFiles = target->sourceIDs;
 
                 if (target->type == XcodeTarget::SharedCodeTarget
-                     || (! project.getProjectType().isAudioPlugin()))
+                     || (! project.isAudioPluginProject()))
                     sourceFiles.addArray (sourceIDs);
 
                 target->addBuildPhase ("PBXSourcesBuildPhase", sourceFiles);
@@ -1934,9 +2247,13 @@ private:
 
             target->addShellScriptBuildPhase ("Post-build script", getPostBuildScript());
 
-            if (project.getProjectType().isAudioPlugin() && project.shouldBuildAUv3()
+            if (project.isAudioPluginProject() && project.shouldBuildAUv3()
                 && project.shouldBuildStandalonePlugin() && target->type == XcodeTarget::StandalonePlugIn)
                 embedAppExtension();
+
+            if (project.isAudioPluginProject() && project.shouldBuildUnityPlugin()
+                && target->type == XcodeTarget::UnityPlugIn)
+                embedUnityScript();
 
             addTargetObject (*target);
         }
@@ -1955,9 +2272,28 @@ private:
         }
     }
 
+    void embedUnityScript() const
+    {
+        if (auto* unityTarget = getTargetOfType (XcodeTarget::UnityPlugIn))
+        {
+            RelativePath scriptPath (getProject().getGeneratedCodeFolder().getChildFile (getProject().getUnityScriptName()),
+                                     getTargetFolder(),
+                                     RelativePath::buildTargetFolder);
+
+            auto path = scriptPath.toUnixStyle();
+            auto refID = addFileReference (path);
+            auto fileID = addBuildFile (path, refID, false, false);
+
+            resourceIDs.add (fileID);
+            resourceFileRefs.add (refID);
+
+            unityTarget->addCopyFilesPhase ("Embed Unity Script", fileID, kResourcesFolder);
+        }
+    }
+
     static Image fixMacIconImageSize (Drawable& image)
     {
-        const int validSizes[] = { 16, 32, 48, 128, 256, 512, 1024 };
+        const int validSizes[] = { 16, 32, 64, 128, 256, 512, 1024 };
 
         auto w = image.getWidth();
         auto h = image.getHeight();
@@ -2003,6 +2339,7 @@ private:
 
         v->setProperty ("dependencies", indentParenthesisedList (getTargetDependencies (target)), nullptr);
         v->setProperty (Ids::name, target.getXcodeSchemeName(), nullptr);
+
         v->setProperty ("productName", projectName, nullptr);
 
         if (target.type != XcodeTarget::AggregateTarget)
@@ -2021,7 +2358,7 @@ private:
     {
         StringArray dependencies;
 
-        if (project.getProjectType().isAudioPlugin())
+        if (project.isAudioPluginProject())
         {
             if (target.type == XcodeTarget::StandalonePlugIn) // depends on AUv3 and shared code
             {
@@ -2046,42 +2383,7 @@ private:
         return dependencies;
     }
 
-    static void writeOldIconFormat (MemoryOutputStream& out, const Image& image, const char* type, const char* maskType)
-    {
-        auto w = image.getWidth();
-        auto h = image.getHeight();
-
-        out.write (type, 4);
-        out.writeIntBigEndian (8 + 4 * w * h);
-
-        Image::BitmapData bitmap (image, Image::BitmapData::readOnly);
-
-        for (int y = 0; y < h; ++y)
-        {
-            for (int x = 0; x < w; ++x)
-            {
-                auto pixel = bitmap.getPixelColour (x, y);
-                out.writeByte ((char) pixel.getAlpha());
-                out.writeByte ((char) pixel.getRed());
-                out.writeByte ((char) pixel.getGreen());
-                out.writeByte ((char) pixel.getBlue());
-            }
-        }
-
-        out.write (maskType, 4);
-        out.writeIntBigEndian (8 + w * h);
-
-        for (int y = 0; y < h; ++y)
-        {
-            for (int x = 0; x < w; ++x)
-            {
-                auto pixel = bitmap.getPixelColour (x, y);
-                out.writeByte ((char) pixel.getAlpha());
-            }
-        }
-    }
-
-    static void writeNewIconFormat (MemoryOutputStream& out, const Image& image, const char* type)
+    static void writeIconData (MemoryOutputStream& out, const Image& image, const char* type)
     {
         MemoryOutputStream pngData;
         PNGImageFormat pngFormat;
@@ -2095,12 +2397,12 @@ private:
     void writeIcnsFile (const OwnedArray<Drawable>& images, OutputStream& out) const
     {
         MemoryOutputStream data;
-        int smallest = 0x7fffffff;
+        auto smallest = std::numeric_limits<int>::max();
         Drawable* smallestImage = nullptr;
 
         for (int i = 0; i < images.size(); ++i)
         {
-            auto image = fixMacIconImageSize (*images.getUnchecked(i));
+            auto image = fixMacIconImageSize (*images.getUnchecked (i));
             jassert (image.getWidth() == image.getHeight());
 
             if (image.getWidth() < smallest)
@@ -2111,13 +2413,13 @@ private:
 
             switch (image.getWidth())
             {
-                case 16:   writeOldIconFormat (data, image, "is32", "s8mk"); break;
-                case 32:   writeOldIconFormat (data, image, "il32", "l8mk"); break;
-                case 48:   writeOldIconFormat (data, image, "ih32", "h8mk"); break;
-                case 128:  writeOldIconFormat (data, image, "it32", "t8mk"); break;
-                case 256:  writeNewIconFormat (data, image, "ic08"); break;
-                case 512:  writeNewIconFormat (data, image, "ic09"); break;
-                case 1024: writeNewIconFormat (data, image, "ic10"); break;
+                case 16:   writeIconData (data, image, "icp4"); break;
+                case 32:   writeIconData (data, image, "icp5"); break;
+                case 64:   writeIconData (data, image, "icp6"); break;
+                case 128:  writeIconData (data, image, "ic07"); break;
+                case 256:  writeIconData (data, image, "ic08"); break;
+                case 512:  writeIconData (data, image, "ic09"); break;
+                case 1024: writeIconData (data, image, "ic10"); break;
                 default:   break;
             }
         }
@@ -2127,7 +2429,7 @@ private:
         // If you only supply a 1024 image, the file doesn't work on 10.8, so we need
         // to force a smaller one in there too..
         if (smallest > 512 && smallestImage != nullptr)
-            writeNewIconFormat (data, rescaleImageForIcon (*smallestImage, 512), "ic09");
+            writeIconData (data, rescaleImageForIcon (*smallestImage, 512), "ic09");
 
         out.write ("icns", 4);
         out.writeIntBigEndian ((int) data.getDataSize() + 8);
@@ -2136,13 +2438,11 @@ private:
 
     void getIconImages (OwnedArray<Drawable>& images) const
     {
-        ScopedPointer<Drawable> bigIcon (getBigIcon());
-        if (bigIcon != nullptr)
-            images.add (bigIcon.release());
+        if (auto icon = getBigIcon())
+            images.add (std::move (icon));
 
-        ScopedPointer<Drawable> smallIcon (getSmallIcon());
-        if (smallIcon != nullptr)
-            images.add (smallIcon.release());
+        if (auto icon = getSmallIcon())
+            images.add (std::move (icon));
     }
 
     void createiOSIconFiles (File appIconSet) const
@@ -2192,6 +2492,27 @@ private:
         }
     }
 
+    void writeWorkspaceSettings() const
+    {
+        auto settingsFile = getProjectBundle().getChildFile ("project.xcworkspace")
+                                              .getChildFile ("xcshareddata")
+                                              .getChildFile ("WorkspaceSettings.xcsettings");
+
+        MemoryOutputStream mo;
+        mo.setNewLineString ("\n");
+
+        mo << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << newLine
+           << "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" << newLine
+           << "<plist version=\"1.0\">"                    << newLine
+           << "<dict>"                                     << newLine
+           << "\t" << "<key>BuildSystemType</key>"         << newLine
+           << "\t" << "<string>Original</string>"          << newLine
+           << "</dict>"                                    << newLine
+           << "</plist>"                                   << newLine;
+
+        overwriteFileIfDifferentOrThrow (settingsFile, mo);
+    }
+
     void writeInfoPlistFiles() const
     {
         for (auto& target : targets)
@@ -2220,7 +2541,7 @@ private:
         if (library.substring (0, 3) == "lib")
             library = library.substring (3);
 
-        return "-l" + library.replace (" ", "\\\\ ").upToLastOccurrenceOf (".", false, false);
+        return "-l" + library.replace (" ", "\\\\ ").replace ("\"", "\\\\\"").replace ("\'", "\\\\\'").upToLastOccurrenceOf (".", false, false);
     }
 
     String getSearchPathForStaticLibrary (const RelativePath& library) const
@@ -2238,6 +2559,16 @@ private:
         }
 
         return sanitisePath (searchPath);
+    }
+
+    String getCodeSigningIdentity (const XcodeBuildConfiguration& config) const
+    {
+        auto identity = config.getCodeSignIdentityString();
+
+        if (identity.isEmpty() && getDevelopmentTeamIDString().isNotEmpty())
+            return iOS ? "iPhone Developer" : "Mac Developer";
+
+        return identity;
     }
 
     StringPairArray getProjectSettings (const XcodeBuildConfiguration& config) const
@@ -2259,22 +2590,25 @@ private:
         s.set ("GCC_WARN_UNDECLARED_SELECTOR", "YES");
         s.set ("GCC_WARN_UNINITIALIZED_AUTOS", "YES");
         s.set ("GCC_WARN_UNUSED_FUNCTION", "YES");
+        s.set ("CLANG_ENABLE_OBJC_WEAK", "YES");
         s.set ("CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING", "YES");
         s.set ("CLANG_WARN_BOOL_CONVERSION", "YES");
         s.set ("CLANG_WARN_COMMA", "YES");
         s.set ("CLANG_WARN_CONSTANT_CONVERSION", "YES");
+        s.set ("CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS", "YES");
         s.set ("CLANG_WARN_EMPTY_BODY", "YES");
         s.set ("CLANG_WARN_ENUM_CONVERSION", "YES");
         s.set ("CLANG_WARN_INFINITE_RECURSION", "YES");
         s.set ("CLANG_WARN_INT_CONVERSION", "YES");
         s.set ("CLANG_WARN_NON_LITERAL_NULL_CONVERSION", "YES");
+        s.set ("CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF", "YES");
         s.set ("CLANG_WARN_OBJC_LITERAL_CONVERSION", "YES");
         s.set ("CLANG_WARN_RANGE_LOOP_ANALYSIS", "YES");
         s.set ("CLANG_WARN_STRICT_PROTOTYPES", "YES");
         s.set ("CLANG_WARN_SUSPICIOUS_MOVE", "YES");
         s.set ("CLANG_WARN_UNREACHABLE_CODE", "YES");
         s.set ("CLANG_WARN__DUPLICATE_METHOD_MATCH", "YES");
-        s.set ("WARNING_CFLAGS", "-Wreorder");
+        s.set ("WARNING_CFLAGS", "\"-Wreorder\"");
 
         if (projectType.isStaticLibrary())
         {
@@ -2294,23 +2628,24 @@ private:
                 s.set ("ONLY_ACTIVE_ARCH", "YES");
         }
 
+        s.set (iOS ? "\"CODE_SIGN_IDENTITY[sdk=iphoneos*]\"" : "CODE_SIGN_IDENTITY",
+               getCodeSigningIdentity (config).quoted());
+
         if (iOS)
         {
-            s.set ("\"CODE_SIGN_IDENTITY[sdk=iphoneos*]\"", config.getCodeSignIdentityString().quoted());
             s.set ("SDKROOT", "iphoneos");
             s.set ("TARGETED_DEVICE_FAMILY", getDeviceFamilyString().quoted());
             s.set ("IPHONEOS_DEPLOYMENT_TARGET", config.getiOSDeploymentTargetString());
         }
         else
         {
-            if (! config.isUsingDefaultCodeSignIdentity() || getIosDevelopmentTeamIDString().isNotEmpty())
-                s.set ("CODE_SIGN_IDENTITY", config.getCodeSignIdentityString().quoted());
+            s.set ("SDKROOT", getOSXSDKVersion (config.getOSXSDKVersionString()));
         }
 
         s.set ("ZERO_LINK", "NO");
 
         if (xcodeCanUseDwarf)
-            s.set ("DEBUG_INFORMATION_FORMAT", "\"dwarf\"");
+            s.set ("DEBUG_INFORMATION_FORMAT", "dwarf");
 
         s.set ("PRODUCT_NAME", replacePreprocessorTokens (config, config.getTargetBinaryNameString()).quoted());
 
@@ -2327,6 +2662,9 @@ private:
             if (iOS && isPushNotificationsEnabled())
                 xcodeFrameworks.addIfNotAlreadyThere ("UserNotifications");
 
+            if (isiOS() && project.getConfigFlag ("JUCE_USE_CAMERA").get())
+                xcodeFrameworks.addIfNotAlreadyThere ("ImageIO");
+
             xcodeFrameworks.addTokens (getExtraFrameworksString(), ",;", "\"'");
             xcodeFrameworks.trim();
 
@@ -2341,6 +2679,16 @@ private:
             s.trim();
             s.removeDuplicates (true);
             s.sort (true);
+
+            // When building against the 10.15 SDK we need to make sure the
+            // AudioUnit framework is linked before the AudioToolbox framework.
+            auto audioUnitIndex = s.indexOf ("AudioUnit", false, 1);
+
+            if (audioUnitIndex != -1)
+            {
+                s.remove (audioUnitIndex);
+                s.insert (0, "AudioUnit");
+            }
 
             for (auto& framework : s)
             {
@@ -2359,15 +2707,155 @@ private:
         }
     }
 
+    void addCustomFrameworks() const
+    {
+        StringArray customFrameworks;
+        customFrameworks.addTokens (getExtraCustomFrameworksString(), true);
+        customFrameworks.trim();
+
+        for (auto& framework : customFrameworks)
+        {
+            auto frameworkID = addCustomFramework (framework);
+
+            for (auto& target : targets)
+            {
+                target->frameworkIDs.add (frameworkID);
+                target->frameworkNames.add (framework);
+            }
+        }
+    }
+
+    void addEmbeddedFrameworks() const
+    {
+        StringArray frameworks;
+        frameworks.addTokens (getEmbeddedFrameworksString(), true);
+        frameworks.trim();
+
+        for (auto& framework : frameworks)
+        {
+            auto frameworkID = addEmbeddedFramework (framework);
+            embeddedFrameworkIDs.add (frameworkID);
+
+            for (auto& target : targets)
+            {
+                target->frameworkIDs.add (frameworkID);
+                target->frameworkNames.add (framework);
+            }
+        }
+
+        if (! embeddedFrameworkIDs.isEmpty())
+            for (auto& target : targets)
+                target->addCopyFilesPhase ("Embed Frameworks", embeddedFrameworkIDs, kFrameworksFolder);
+    }
+
     void addCustomResourceFolders() const
     {
         StringArray folders;
 
         folders.addTokens (getCustomResourceFoldersString(), ":", "");
         folders.trim();
+        folders.removeEmptyStrings();
 
         for (auto& crf : folders)
             addCustomResourceFolder (crf);
+    }
+
+    void addSubprojects() const
+    {
+        auto subprojectLines = StringArray::fromLines (getSubprojectsString());
+        subprojectLines.removeEmptyStrings (true);
+
+        Array<std::pair<String, StringArray>> subprojects;
+
+        for (auto& line : subprojectLines)
+        {
+            String subprojectName (line.upToFirstOccurrenceOf (":", false, false));
+            StringArray requestedBuildProducts (StringArray::fromTokens (line.fromFirstOccurrenceOf (":", false, false), ",;|", "\"'"));
+            requestedBuildProducts.trim();
+            subprojects.add ({ subprojectName, requestedBuildProducts });
+        }
+
+        for (const auto& subprojectInfo : subprojects)
+        {
+            String subprojectPath (subprojectInfo.first);
+
+            if (! subprojectPath.endsWith (".xcodeproj"))
+                subprojectPath += ".xcodeproj";
+
+            File subprojectFile;
+
+            if (File::isAbsolutePath (subprojectPath))
+            {
+                subprojectFile = subprojectPath;
+            }
+            else
+            {
+                subprojectFile = getProject().getProjectFolder().getChildFile (subprojectPath);
+
+                RelativePath p (subprojectPath, RelativePath::projectFolder);
+                subprojectPath = p.rebased (getProject().getProjectFolder(), getTargetFolder(), RelativePath::buildTargetFolder).toUnixStyle();
+            }
+
+            if (! subprojectFile.isDirectory())
+                continue;
+
+            auto availableBuildProducts = XcodeProjectParser::parseBuildProducts (subprojectFile);
+
+            // If no build products have been specified then we'll take everything
+            if (! subprojectInfo.second.isEmpty())
+            {
+                auto newEnd = std::remove_if (availableBuildProducts.begin(), availableBuildProducts.end(),
+                                              [&subprojectInfo](const std::pair<String, String> &item)
+                                              {
+                                                  return ! subprojectInfo.second.contains (item.first);
+                                              });
+                availableBuildProducts.erase (newEnd, availableBuildProducts.end());
+            }
+
+            if (availableBuildProducts.empty())
+                continue;
+
+            auto subprojectFileType = getFileType (RelativePath (subprojectPath, RelativePath::projectFolder));
+            auto subprojectFileID = addFileOrFolderReference (subprojectPath, "<group>", subprojectFileType);
+            subprojectFileIDs.add (subprojectFileID);
+
+            StringArray proxyIDs;
+
+            for (auto& buildProduct : availableBuildProducts)
+            {
+                auto buildProductFileType = getFileType (RelativePath (buildProduct.second, RelativePath::projectFolder));
+
+                auto containerID = addContainerItemProxy (subprojectFileID, buildProduct.first);
+                auto proxyID = addReferenceProxy (containerID, buildProduct.second, buildProductFileType);
+                proxyIDs.add (proxyID);
+
+                if (buildProductFileType == "archive.ar" || buildProductFileType == "wrapper.framework")
+                {
+                    auto buildFileID = addBuildFile (buildProduct.second, proxyID, false, true);
+
+                    for (auto& target : targets)
+                        target->frameworkIDs.add (buildFileID);
+
+                    if (buildProductFileType == "wrapper.framework")
+                    {
+                        auto fileID = createID (buildProduct.second + "buildref");
+
+                        auto* v = new ValueTree (fileID);
+                        v->setProperty ("isa", "PBXBuildFile", nullptr);
+                        v->setProperty ("fileRef", proxyID, nullptr);
+                        v->setProperty ("settings", "{ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }", nullptr);
+                        pbxBuildFiles.add (v);
+
+                        embeddedFrameworkIDs.add (fileID);
+                    }
+                }
+            }
+
+            auto productGroupID = createFileRefID (subprojectPath + "_products");
+            addGroup (productGroupID, "Products", proxyIDs);
+
+            subprojectReferences.add ({ productGroupID, subprojectFileID });
+        }
     }
 
     void addXcassets() const
@@ -2401,7 +2889,7 @@ private:
                   "\tarchiveVersion = 1;\n"
                   "\tclasses = {\n\t};\n"
                   "\tobjectVersion = 46;\n"
-                  "\tobjects = {\n\n";
+                  "\tobjects = {\n";
 
         Array<ValueTree*> objects;
         objects.addArray (pbxBuildFiles);
@@ -2413,7 +2901,7 @@ private:
 
         for (auto* o : objects)
         {
-            output << "\t\t" << o->getType().toString() << " = {";
+            output << "\t\t" << o->getType().toString() << " = {\n";
 
             for (int j = 0; j < o->getNumProperties(); ++j)
             {
@@ -2425,16 +2913,17 @@ private:
                                                 || val.trimStart().startsWithChar ('{'))))
                     val = "\"" + val + "\"";
 
-                output << propertyName.toString() << " = " << val << "; ";
+                output << "\t\t\t" << propertyName.toString() << " = " << val << ";\n";
             }
 
-            output << "};\n";
+            output << "\t\t};\n";
         }
 
         output << "\t};\n\trootObject = " << createID ("__root") << ";\n}\n";
     }
 
-    String addBuildFile (const String& path, const String& fileRefID, bool addToSourceBuildPhase, bool inhibitWarnings, XcodeTarget* xcodeTarget = nullptr) const
+    String addBuildFile (const String& path, const String& fileRefID, bool addToSourceBuildPhase, bool inhibitWarnings,
+                         XcodeTarget* xcodeTarget = nullptr, String compilerFlags = {}) const
     {
         auto fileID = createID (path + "buildref");
 
@@ -2451,7 +2940,10 @@ private:
         v->setProperty ("fileRef", fileRefID, nullptr);
 
         if (inhibitWarnings)
-            v->setProperty ("settings", "{COMPILER_FLAGS = \"-w\"; }", nullptr);
+            compilerFlags += " -w";
+
+        if (compilerFlags.isNotEmpty())
+            v->setProperty ("settings", "{ COMPILER_FLAGS = \"" + compilerFlags.trim() + "\"; }", nullptr);
 
         pbxBuildFiles.add (v);
         return fileID;
@@ -2482,18 +2974,9 @@ private:
         return addFileOrFolderReference (pathString, sourceTree, fileType);
     }
 
-    String addFileOrFolderReference (String pathString, String sourceTree, String fileType) const
+    void checkAndAddFileReference (std::unique_ptr<ValueTree> v) const
     {
-        auto fileRefID = createFileRefID (pathString);
-
-        ScopedPointer<ValueTree> v (new ValueTree (fileRefID));
-        v->setProperty ("isa", "PBXFileReference", nullptr);
-        v->setProperty ("lastKnownFileType", fileType, nullptr);
-        v->setProperty (Ids::name, pathString.fromLastOccurrenceOf ("/", false, false), nullptr);
-        v->setProperty ("path", pathString, nullptr);
-        v->setProperty ("sourceTree", sourceTree, nullptr);
-
-        auto existing = pbxFileReferences.indexOfSorted (*this, v);
+        auto existing = pbxFileReferences.indexOfSorted (*this, v.get());
 
         if (existing >= 0)
         {
@@ -2504,6 +2987,53 @@ private:
         {
             pbxFileReferences.addSorted (*this, v.release());
         }
+    }
+
+    String addFileOrFolderReference (const String& pathString, String sourceTree, String fileType) const
+    {
+        auto fileRefID = createFileRefID (pathString);
+
+        std::unique_ptr<ValueTree> v (new ValueTree (fileRefID));
+        v->setProperty ("isa", "PBXFileReference", nullptr);
+        v->setProperty ("lastKnownFileType", fileType, nullptr);
+        v->setProperty (Ids::name, pathString.fromLastOccurrenceOf ("/", false, false), nullptr);
+        v->setProperty ("path", pathString, nullptr);
+        v->setProperty ("sourceTree", sourceTree, nullptr);
+
+        checkAndAddFileReference (std::move (v));
+
+        return fileRefID;
+    }
+
+    String addContainerItemProxy (const String& subprojectID, const String& itemName) const
+    {
+        auto uniqueString = subprojectID + "_" + itemName;
+        auto fileRefID = createFileRefID (uniqueString);
+
+        std::unique_ptr<ValueTree> v (new ValueTree (fileRefID));
+        v->setProperty ("isa", "PBXContainerItemProxy", nullptr);
+        v->setProperty ("containerPortal", subprojectID, nullptr);
+        v->setProperty ("proxyType", 2, nullptr);
+        v->setProperty ("remoteGlobalIDString", createFileRefID (uniqueString + "_global"), nullptr);
+        v->setProperty ("remoteInfo", itemName, nullptr);
+
+        checkAndAddFileReference (std::move (v));
+
+        return fileRefID;
+    }
+
+    String addReferenceProxy (const String& containerItemID, const String& proxyPath, const String& fileType) const
+    {
+        auto fileRefID = createFileRefID (containerItemID + "_" + proxyPath);
+
+        std::unique_ptr<ValueTree> v (new ValueTree (fileRefID));
+        v->setProperty ("isa", "PBXReferenceProxy", nullptr);
+        v->setProperty ("fileType", fileType, nullptr);
+        v->setProperty ("path", proxyPath, nullptr);
+        v->setProperty ("remoteRef", containerItemID, nullptr);
+        v->setProperty ("sourceTree", "BUILT_PRODUCTS_DIR", nullptr);
+
+        checkAndAddFileReference (std::move (v));
 
         return fileRefID;
     }
@@ -2541,14 +3071,14 @@ private:
     }
 
     String addFile (const RelativePath& path, bool shouldBeCompiled, bool shouldBeAddedToBinaryResources,
-                    bool shouldBeAddedToXcodeResources, bool inhibitWarnings, XcodeTarget* xcodeTarget) const
+                    bool shouldBeAddedToXcodeResources, bool inhibitWarnings, XcodeTarget* xcodeTarget, const String& compilerFlags) const
     {
         auto pathAsString = path.toUnixStyle();
         auto refID = addFileReference (path.toUnixStyle());
 
         if (shouldBeCompiled)
         {
-            addBuildFile (pathAsString, refID, true, inhibitWarnings, xcodeTarget);
+            addBuildFile (pathAsString, refID, true, inhibitWarnings, xcodeTarget, compilerFlags);
         }
         else if (! shouldBeAddedToBinaryResources || shouldBeAddedToXcodeResources)
         {
@@ -2583,37 +3113,26 @@ private:
         return {};
     }
 
-    String getEntitlementsFileName() const
-    {
-        return project.getProjectFilenameRootString() + String (".entitlements");
-    }
-
-    StringPairArray getEntitlements() const
+    StringPairArray getEntitlements (XcodeTarget& target) const
     {
         StringPairArray entitlements;
-        if (project.getProjectType().isAudioPlugin())
+
+        if (project.isAudioPluginProject())
         {
-            if (isiOS())
-            {
-                if (project.shouldEnableIAA())
-                    entitlements.set ("inter-app-audio", "<true/>");
-            }
-            else
-            {
-                entitlements.set ("com.apple.security.app-sandbox", "<true/>");
-            }
+            if (isiOS() && project.shouldEnableIAA())
+                entitlements.set ("inter-app-audio", "<true/>");
         }
         else
         {
             if (isPushNotificationsEnabled())
                 entitlements.set (isiOS() ? "aps-environment"
                                           : "com.apple.developer.aps-environment",
-                                  "<string>development</string>");
+                                            "<string>development</string>");
         }
 
         if (isAppGroupsEnabled())
         {
-            auto appGroups = StringArray::fromTokens (getAppGroupIdString(), ";", { });
+            auto appGroups = StringArray::fromTokens (getAppGroupIdString(), ";", {});
             auto groups = String ("<array>");
 
             for (auto group : appGroups)
@@ -2622,6 +3141,27 @@ private:
             groups += "\n\t</array>";
 
             entitlements.set ("com.apple.security.application-groups", groups);
+        }
+
+        if (isHardenedRuntimeEnabled())
+            for (auto& option : getHardenedRuntimeOptions())
+                entitlements.set (option, "<true/>");
+
+        if (isAppSandboxEnabled() || (project.isAudioPluginProject() && target.type == XcodeTarget::AudioUnitv3PlugIn))
+        {
+            entitlements.set ("com.apple.security.app-sandbox", "<true/>");
+
+            if (isAppSandboxInhertianceEnabled())
+            {
+                // no other sandbox options can be specified if sandbox inheritance is enabled!
+                jassert (getAppSandboxOptions().isEmpty());
+
+                entitlements.set ("com.apple.security.inherit", "<true/>");
+            }
+
+            if (isAppSandboxEnabled())
+                for (auto& option : getAppSandboxOptions())
+                    entitlements.set (option, "<true/>");
         }
 
         if (isiOS() && isiCloudPermissionsEnabled())
@@ -2645,7 +3185,7 @@ private:
         return entitlements;
     }
 
-    String addEntitlementsFile (StringPairArray entitlements) const
+    void addEntitlementsFile (XcodeTarget& target) const
     {
         String content =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -2653,21 +3193,20 @@ private:
             "<plist version=\"1.0\">\n"
             "<dict>\n";
 
-        auto keys = entitlements.getAllKeys();
+        auto entitlements = getEntitlements (target);
 
-        for (auto& key : keys)
-        {
+        for (auto& key : entitlements.getAllKeys())
             content += "\t<key>" + key + "</key>\n"
                        "\t" + entitlements[key] + "\n";
-        }
+
         content += "</dict>\n"
                    "</plist>\n";
 
-        auto entitlementsFile = getTargetFolder().getChildFile (getEntitlementsFileName());
+        auto entitlementsFile = getTargetFolder().getChildFile (target.getEntitlementsFilename());
         overwriteFileIfDifferentOrThrow (entitlementsFile, content);
 
-        RelativePath plistPath (entitlementsFile, getTargetFolder(), RelativePath::buildTargetFolder);
-        return addFile (plistPath, false, false, false, false, nullptr);
+        RelativePath entitlementsPath (entitlementsFile, getTargetFolder(), RelativePath::buildTargetFolder);
+        addFile (entitlementsPath, false, false, false, false, nullptr, {});
     }
 
     String addProjectItem (const Project::Item& projectItem) const
@@ -2694,7 +3233,7 @@ private:
             return addGroup (projectItem, childIDs);
         }
 
-        if (projectItem.shouldBeAddedToTargetProject())
+        if (projectItem.shouldBeAddedToTargetProject() && projectItem.shouldBeAddedToTargetExporter (*this))
         {
             auto itemPath = projectItem.getFilePath();
             RelativePath path;
@@ -2715,7 +3254,8 @@ private:
                             projectItem.shouldBeAddedToBinaryResources(),
                             projectItem.shouldBeAddedToXcodeResources(),
                             projectItem.shouldInhibitWarnings(),
-                            xcodeTarget);
+                            xcodeTarget,
+                            compilerFlagSchemesMap[projectItem.getCompilerFlagSchemeString()].get());
         }
 
         return {};
@@ -2724,7 +3264,9 @@ private:
     String addFramework (const String& frameworkName) const
     {
         auto path = frameworkName;
-        if (! File::isAbsolutePath (path))
+        auto isRelativePath = path.startsWith ("../");
+
+        if (! File::isAbsolutePath (path) && ! isRelativePath)
             path = "System/Library/Frameworks/" + path;
 
         if (! path.endsWithIgnoreCase (".framework"))
@@ -2732,10 +3274,45 @@ private:
 
         auto fileRefID = createFileRefID (path);
 
-        addFileReference ((File::isAbsolutePath (frameworkName) ? "" : "${SDKROOT}/") + path);
+        addFileReference (((File::isAbsolutePath (frameworkName) || isRelativePath) ? "" : "${SDKROOT}/") + path);
         frameworkFileIDs.add (fileRefID);
 
         return addBuildFile (path, fileRefID, false, false);
+    }
+
+    String addCustomFramework (String frameworkPath) const
+    {
+        if (! frameworkPath.endsWithIgnoreCase (".framework"))
+            frameworkPath << ".framework";
+
+        auto fileRefID = createFileRefID (frameworkPath);
+
+        auto fileType = getFileType (RelativePath (frameworkPath, RelativePath::projectFolder));
+        addFileOrFolderReference (frameworkPath, "<group>", fileType);
+
+        frameworkFileIDs.add (fileRefID);
+
+        return addBuildFile (frameworkPath, fileRefID, false, false);
+    }
+
+    String addEmbeddedFramework (const String& path) const
+    {
+        auto fileRefID = createFileRefID (path);
+
+        auto fileType = getFileType (RelativePath (path, RelativePath::projectFolder));
+        addFileOrFolderReference (path, "<group>", fileType);
+
+        auto fileID = createID (path + "buildref");
+
+        auto* v = new ValueTree (fileID);
+        v->setProperty ("isa", "PBXBuildFile", nullptr);
+        v->setProperty ("fileRef", fileRefID, nullptr);
+        v->setProperty ("settings", "{ ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }", nullptr);
+        pbxBuildFiles.add (v);
+
+        frameworkFileIDs.add (fileRefID);
+
+        return fileID;
     }
 
     void addGroup (const String& groupID, const String& groupName, const StringArray& childIDs) const
@@ -2806,17 +3383,31 @@ private:
         v->setProperty ("hasScannedForEncodings", (int) 0, nullptr);
         v->setProperty ("mainGroup", createID ("__mainsourcegroup"), nullptr);
         v->setProperty ("projectDirPath", "\"\"", nullptr);
+
+        if (! subprojectReferences.isEmpty())
+        {
+            StringArray projectReferences;
+
+            for (auto& reference : subprojectReferences)
+                projectReferences.add (indentBracedList ({ "ProductGroup = " + reference.first, "ProjectRef = " + reference.second }, 1));
+
+            v->setProperty ("projectReferences", indentParenthesisedList (projectReferences), nullptr);
+        }
+
         v->setProperty ("projectRoot", "\"\"", nullptr);
 
         auto targetString = "(" + targetIDs.joinIntoString (", ") + ")";
         v->setProperty ("targets", targetString, nullptr);
+
+        v->setProperty ("knownRegions", "(en, Base)", nullptr);
+
         misc.add (v);
     }
 
     //==============================================================================
     void removeMismatchedXcuserdata() const
     {
-        if (settings ["keepCustomXcodeSchemes"])
+        if (shouldKeepCustomXcodeSchemes())
             return;
 
         auto xcuserdata = getProjectBundle().getChildFile ("xcuserdata");
@@ -2827,6 +3418,7 @@ private:
         if (! xcuserdataMatchesTargets (xcuserdata))
         {
             xcuserdata.deleteRecursively();
+            getProjectBundle().getChildFile ("xcshareddata").getChildFile ("xcschemes").deleteRecursively();
             getProjectBundle().getChildFile ("project.xcworkspace").deleteRecursively();
         }
     }
@@ -2878,9 +3470,7 @@ private:
 
     bool xcschemeManagementPlistMatchesTargets (const File& plist) const
     {
-        ScopedPointer<XmlElement> xml (XmlDocument::parse (plist));
-
-        if (xml != nullptr)
+        if (auto xml = parseXML (plist))
             if (auto* dict = xml->getChildByName ("dict"))
                 return parseNamesOfTargetsFromPlist (*dict) == getNamesOfTargets();
 
@@ -2937,7 +3527,7 @@ private:
 
         for (auto& type : getiOSAppIconTypes())
         {
-            DynamicObject::Ptr d = new DynamicObject();
+            DynamicObject::Ptr d (new DynamicObject());
             d->setProperty ("idiom",    type.idiom);
             d->setProperty ("size",     type.sizeString);
             d->setProperty ("filename", type.filename);
@@ -2952,7 +3542,7 @@ private:
     {
         String attributes;
 
-        attributes << "{ LastUpgradeCheck = 0830; "
+        attributes << "{ LastUpgradeCheck = 1100; "
                    << "ORGANIZATIONNAME = " << getProject().getCompanyNameString().quoted()
                    <<"; ";
 
@@ -3005,7 +3595,7 @@ private:
 
         for (auto& type : getiOSLaunchImageTypes())
         {
-            DynamicObject::Ptr d = new DynamicObject();
+            DynamicObject::Ptr d (new DynamicObject());
             d->setProperty ("orientation", type.orientation);
             d->setProperty ("idiom", type.idiom);
             d->setProperty ("extent",  type.extent);
@@ -3051,6 +3641,46 @@ private:
         return JSON::toString (var (v.get()));
     }
 
+    void writeDefaultLaunchStoryboardFile() const
+    {
+        auto storyboardFile = getTargetFolder().getChildFile (getDefaultLaunchStoryboardName() + ".storyboard");
+
+        MemoryOutputStream mo;
+        mo.setNewLineString ("\n");
+
+        mo << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"                                                                                                                  << newLine
+           << "<document type=\"com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB\" version=\"3.0\" toolsVersion=\"14460.31\" "
+           << "targetRuntime=\"iOS.CocoaTouch\" propertyAccessControl=\"none\" useAutolayout=\"YES\" launchScreen=\"YES\" useTraitCollections=\"YES\" "
+           << "useSafeAreas=\"YES\" colorMatched=\"YES\" initialViewController=\"01J-lp-oVM\">"                                                                             << newLine
+           << "    <scenes>"                                                                                                                                                << newLine
+           << "        <scene sceneID=\"EHf-IW-A2E\">"                                                                                                                      << newLine
+           << "            <objects>"                                                                                                                                       << newLine
+           << "                <placeholder placeholderIdentifier=\"IBFirstResponder\" id=\"iYj-Kq-Ea1\" userLabel=\"\" sceneMemberID=\"firstResponder\"/>"                 << newLine
+           << "                <viewController id=\"01J-lp-oVM\" sceneMemberID=\"viewController\">"                                                                         << newLine
+           << "                    <view key=\"view\" contentMode=\"scaleToFill\" id=\"Ze5-6b-2t3\">"                                                                       << newLine
+           << "                        <autoresizingMask key=\"autoresizingMask\"/>"                                                                                        << newLine
+           << "                        <color key=\"backgroundColor\" red=\"0\" green=\"0\" blue=\"0\" alpha=\"1\" colorSpace=\"custom\" customColorSpace=\"sRGB\"/>"       << newLine
+           << "                    </view>"                                                                                                                                 << newLine
+           << "                </viewController>"                                                                                                                           << newLine
+           << "            </objects>"                                                                                                                                      << newLine
+           << "        </scene>"                                                                                                                                            << newLine
+           << "    </scenes>"                                                                                                                                               << newLine
+           << "</document>"                                                                                                                                                 << newLine;
+
+        overwriteFileIfDifferentOrThrow (storyboardFile, mo);
+
+        addLaunchStoryboardFileReference (RelativePath (storyboardFile, getTargetFolder(), RelativePath::buildTargetFolder).toUnixStyle());
+    }
+
+    void addLaunchStoryboardFileReference (const String& relativePath) const
+    {
+        auto refID  = addFileReference (relativePath);
+        auto fileID = addBuildFile (relativePath, refID, false, false);
+
+        resourceIDs.add (fileID);
+        resourceFileRefs.add (refID);
+    }
+
     void createXcassetsFolderFromIcons() const
     {
         auto assets = getTargetFolder().getChildFile (project.getProjectFilenameRootString())
@@ -3071,25 +3701,21 @@ private:
     }
 
     //==============================================================================
-    static String indentBracedList (const StringArray& list)        { return "{" + indentList (list, ";", 0, true) + " }"; }
-    static String indentParenthesisedList (const StringArray& list) { return "(" + indentList (list, ",", 1, false) + " )"; }
+    static String indentBracedList        (const StringArray& list, int depth = 0) { return indentList (list, '{', '}', ";", depth, true); }
+    static String indentParenthesisedList (const StringArray& list, int depth = 0) { return indentList (list, '(', ')', ",", depth, false); }
 
-    static String indentList (const StringArray& list, const String& separator, int extraTabs, bool shouldSort)
+    static String indentList (StringArray list, char openBracket, char closeBracket, const String& separator, int extraTabs, bool shouldSort)
     {
         if (list.size() == 0)
-            return " ";
+            return openBracket + String (" ") + closeBracket;
 
         auto tabs = "\n" + String::repeatedString ("\t", extraTabs + 4);
 
         if (shouldSort)
-        {
-            auto sorted = list;
-            sorted.sort (true);
+            list.sort (true);
 
-            return tabs + sorted.joinIntoString (separator + tabs) + separator;
-        }
-
-        return tabs + list.joinIntoString (separator + tabs) + separator;
+        return openBracket + tabs + list.joinIntoString (separator + tabs) + separator
+                   + "\n" + String::repeatedString ("\t", extraTabs + 3) + closeBracket;
     }
 
     String createID (String rootString) const
@@ -3106,20 +3732,9 @@ private:
     String createFileRefID (const String& path) const           { return createID ("__fileref_" + path); }
     String getIDForGroup (const Project::Item& item) const      { return createID (item.getID()); }
 
-    bool shouldFileBeCompiledByDefault (const RelativePath& file) const override
+    bool shouldFileBeCompiledByDefault (const File& file) const override
     {
         return file.hasFileExtension (sourceFileExtensions);
-    }
-
-    static String getOSXVersionName (int version)
-    {
-        jassert (version >= 4);
-        return "10." + String (version);
-    }
-
-    static String getSDKName (int version)
-    {
-        return getOSXVersionName (version) + " SDK";
     }
 
     JUCE_DECLARE_NON_COPYABLE (XcodeProjectExporter)

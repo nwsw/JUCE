@@ -28,8 +28,12 @@
 
 
 //==============================================================================
-const char* getPreferredLinefeed();
+const char* getPreferredLineFeed();
 String joinLinesIntoSourceFile (StringArray& lines);
+String replaceLineFeeds (const String& content, const String& lineFeed);
+String getLineFeedForFile (const String& fileContent);
+
+var parseJUCEHeaderMetadata (const File&);
 
 String trimCommentCharsFromStartOfLine (const String& line);
 
@@ -68,6 +72,9 @@ StringArray getModulesRequiredForAudioProcessor() noexcept;
 bool isPIPFile (const File&) noexcept;
 
 bool isValidJUCEExamplesDirectory (const File&) noexcept;
+
+bool isJUCEModulesFolder (const File&);
+bool isJUCEFolder (const File&);
 
 //==============================================================================
 int indexOfLineStartingWith (const StringArray& lines, const String& text, int startIndex);

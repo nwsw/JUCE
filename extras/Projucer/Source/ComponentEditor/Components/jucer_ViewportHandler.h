@@ -148,14 +148,13 @@ public:
                 if (filename.isNotEmpty())
                     file = code.document->getCppFile().getSiblingFile (filename);
 
-                ScopedPointer<JucerDocument> doc (JucerDocument::createForCppFile (nullptr, file));
+                std::unique_ptr<JucerDocument> doc (JucerDocument::createForCppFile (nullptr, file));
 
                 if (doc != nullptr)
                 {
-                    code.includeFilesCPP.add (doc->getHeaderFile()
-                                                .getRelativePathFrom (code.document->getCppFile().getParentDirectory())
-                                                .replaceCharacter ('\\', '/'));
-
+                    code.includeFilesCPP.add (File::createFileWithoutCheckingPath (doc->getHeaderFile()
+                                                                                       .getRelativePathFrom (code.document->getCppFile().getParentDirectory())
+                                                                                       .replaceCharacter ('\\', '/')));
                     classNm = doc->getClassName();
                 }
                 else
@@ -189,7 +188,7 @@ public:
         if (getViewportContentType (vp) == 1)
         {
             JucerDocument* doc = findParentDocument (vp);
-            TestComponent* tc = new TestComponent (doc, 0, false);
+            auto tc = new TestComponent (doc, nullptr, false);
 
             tc->setFilename (getViewportJucerComponentFile (vp));
             tc->setToInitialSize();
@@ -235,11 +234,11 @@ public:
         return vp->getProperties() ["contentClass"].toString();
     }
 
-    static void setViewportGenericComponentClass (Viewport* vp, const String& className)
+    static void setViewportGenericComponentClass (Viewport* vp, const String& name)
     {
-        if (className != getViewportGenericComponentClass (vp))
+        if (name != getViewportGenericComponentClass (vp))
         {
-            vp->getProperties().set ("contentClass", className);
+            vp->getProperties().set ("contentClass", name);
             updateViewportContentComp (vp);
         }
     }

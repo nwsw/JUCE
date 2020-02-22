@@ -33,7 +33,9 @@
                    juce_audio_processors, juce_audio_utils, juce_core,
                    juce_data_structures, juce_dsp, juce_events, juce_graphics,
                    juce_gui_basics, juce_gui_extra
- exporters:        xcode_mac, vs2017, linux_make
+ exporters:        xcode_mac, vs2019, linux_make
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        SIMDRegisterDemo
@@ -124,7 +126,7 @@ struct SIMDRegisterDemoDSP
 
     //==============================================================================
     IIR::Coefficients<float>::Ptr iirCoefficients;
-    ScopedPointer<IIR::Filter<SIMDRegister<float>>> iir;
+    std::unique_ptr<IIR::Filter<SIMDRegister<float>>> iir;
 
     AudioBlock<SIMDRegister<float>> interleaved;
     AudioBlock<float> zero;

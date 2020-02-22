@@ -27,12 +27,13 @@
 #pragma once
 
 #include "jucer_ProjectType.h"
-#include "../LiveBuildEngine/jucer_CompileEngineSettings.h"
 
 class ProjectExporter;
 class LibraryModule;
 class EnabledModuleList;
+class AvailableModuleList;
 class ProjectContentComponent;
+class CompileEngineSettings;
 
 //==============================================================================
 class Project  : public FileBasedDocument,
@@ -41,7 +42,7 @@ class Project  : public FileBasedDocument,
 public:
     //==============================================================================
     Project (const File&);
-    ~Project();
+    ~Project() override;
 
     //==============================================================================
     // FileBasedDocument stuff..
@@ -66,9 +67,8 @@ public:
     File getBinaryDataCppFile (int index) const;
     File getBinaryDataHeaderFile() const                        { return getBinaryDataCppFile (0).withFileExtension (".h"); }
 
-    String getAppConfigFilename() const                         { return "AppConfig.h"; }
-    String getJuceSourceFilenameRoot() const                    { return "JuceLibraryCode"; }
-    String getJuceSourceHFilename() const                       { return "JuceHeader.h"; }
+    static String getAppConfigFilename()                        { return "AppConfig.h"; }
+    static String getJuceSourceHFilename()                      { return "JuceHeader.h"; }
 
     //==============================================================================
     template <class FileType>
@@ -97,14 +97,17 @@ public:
     String getProjectFilenameRootString()                { return File::createLegalFileName (getDocumentTitle()); }
     String getProjectUIDString() const                   { return projectUIDValue.get(); }
 
+    String getProjectLineFeed() const                    { return projectLineFeedValue.get(); }
+
     String getVersionString() const                      { return versionValue.get(); }
     String getVersionAsHex() const;
     int getVersionAsHexInteger() const;
     void setProjectVersion (const String& newVersion)    { versionValue = newVersion; }
 
     String getBundleIdentifierString() const             { return bundleIdentifierValue.get(); }
-    String getDefaultBundleIdentifierString()            { return "com.yourcompany." + CodeHelpers::makeValidIdentifier (getProjectNameString(), false, true, false); }
-    String getDefaultAAXIdentifierString()               { return getDefaultBundleIdentifierString(); }
+    String getDefaultBundleIdentifierString() const;
+    String getDefaultAAXIdentifierString() const         { return getDefaultBundleIdentifierString(); }
+    String getDefaultPluginManufacturerString() const;
 
     String getCompanyNameString() const                  { return companyNameValue.get(); }
     String getCompanyCopyrightString() const             { return companyCopyrightValue.get(); }
@@ -125,6 +128,13 @@ public:
 
     String getCppStandardString() const                  { return cppStandardValue.get(); }
 
+    StringArray getCompilerFlagSchemes() const;
+    void addCompilerFlagScheme (const String&);
+    void removeCompilerFlagScheme (const String&);
+
+    String getPostExportShellCommandPosixString() const     { return postExportShellCommandPosixValue.get(); }
+    String getPostExportShellCommandWinString() const       { return postExportShellCommandWinValue.get(); }
+
     //==============================================================================
     String getPluginNameString() const                { return pluginNameValue.get(); }
     String getPluginDescriptionString() const         { return pluginDescriptionValue.get();}
@@ -134,9 +144,9 @@ public:
     String getPluginChannelConfigsString() const      { return pluginChannelConfigsValue.get(); }
     String getAAXIdentifierString() const             { return pluginAAXIdentifierValue.get(); }
     String getPluginAUExportPrefixString() const      { return pluginAUExportPrefixValue.get(); }
-    String getPluginAUMainTypeString() const          { return pluginAUMainTypeValue.get(); }
+    String getVSTNumMIDIInputsString() const          { return pluginVSTNumMidiInputsValue.get(); }
+    String getVSTNumMIDIOutputsString() const         { return pluginVSTNumMidiOutputsValue.get(); }
 
-    //==============================================================================
     static bool checkMultiChoiceVar (const ValueWithDefault& valueToCheck, Identifier idToCheck) noexcept
     {
         if (! valueToCheck.get().isArray())
@@ -150,17 +160,18 @@ public:
         return false;
     }
 
-    //==============================================================================
-    bool shouldBuildVST() const                       { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildVST); }
-    bool shouldBuildVST3() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildVST3); }
-    bool shouldBuildAU() const                        { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildAU); }
-    bool shouldBuildAUv3() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildAUv3); }
-    bool shouldBuildRTAS() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildRTAS); }
-    bool shouldBuildAAX() const                       { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildAAX); }
-    bool shouldBuildStandalonePlugin() const          { return checkMultiChoiceVar (pluginFormatsValue, Ids::buildStandalone); }
-    bool shouldEnableIAA() const                      { return checkMultiChoiceVar (pluginFormatsValue, Ids::enableIAA); }
+    bool isAudioPluginProject() const                 { return getProjectType().isAudioPlugin(); }
 
-    //==============================================================================
+    bool shouldBuildVST() const                       { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildVST); }
+    bool shouldBuildVST3() const                      { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildVST3); }
+    bool shouldBuildAU() const                        { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildAU); }
+    bool shouldBuildAUv3() const                      { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildAUv3); }
+    bool shouldBuildRTAS() const                      { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildRTAS); }
+    bool shouldBuildAAX() const                       { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildAAX); }
+    bool shouldBuildStandalonePlugin() const          { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildStandalone); }
+    bool shouldBuildUnityPlugin() const               { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::buildUnity); }
+    bool shouldEnableIAA() const                      { return isAudioPluginProject() && checkMultiChoiceVar (pluginFormatsValue, Ids::enableIAA); }
+
     bool isPluginSynth() const                        { return checkMultiChoiceVar (pluginCharacteristicsValue, Ids::pluginIsSynth); }
     bool pluginWantsMidiInput() const                 { return checkMultiChoiceVar (pluginCharacteristicsValue, Ids::pluginWantsMidiIn); }
     bool pluginProducesMidiOutput() const             { return checkMultiChoiceVar (pluginCharacteristicsValue, Ids::pluginProducesMidiOut); }
@@ -171,7 +182,6 @@ public:
     bool isPluginAAXBypassDisabled() const            { return checkMultiChoiceVar (pluginCharacteristicsValue, Ids::pluginAAXDisableBypass); }
     bool isPluginAAXMultiMonoDisabled() const         { return checkMultiChoiceVar (pluginCharacteristicsValue, Ids::pluginAAXDisableMultiMono); }
 
-    //==============================================================================
     static StringArray getAllAUMainTypeStrings() noexcept;
     static Array<var> getAllAUMainTypeVars() noexcept;
     Array<var> getDefaultAUMainTypes() const noexcept;
@@ -191,6 +201,7 @@ public:
     Array<var> getDefaultRTASCategories() const noexcept;
 
     String getAUMainTypeString() const noexcept;
+    bool isAUSandBoxSafe() const noexcept;
     String getVSTCategoryString() const noexcept;
     String getVST3CategoryString() const noexcept;
     int getAAXCategory() const noexcept;
@@ -198,6 +209,15 @@ public:
 
     String getIAATypeCode();
     String getIAAPluginName();
+
+    String getUnityScriptName() const    { return addUnityPluginPrefixIfNecessary (getProjectNameString()) + "_UnityScript.cs"; }
+    static String addUnityPluginPrefixIfNecessary (const String& name)
+    {
+        if (! name.startsWithIgnoreCase ("audioplugin"))
+            return "audioplugin_" + name;
+
+        return name;
+    }
 
     //==============================================================================
     bool isAUPluginHost();
@@ -238,7 +258,7 @@ public:
         Item findItemWithID (const String& targetId) const; // (recursive search)
 
         String getImageFileID() const;
-        Drawable* loadAsImageFile() const;
+        std::unique_ptr<Drawable> loadAsImageFile() const;
 
         //==============================================================================
         Value getNameValue();
@@ -251,6 +271,7 @@ public:
         bool renameFile (const File& newFile);
 
         bool shouldBeAddedToTargetProject() const;
+        bool shouldBeAddedToTargetExporter (const ProjectExporter&) const;
         bool shouldBeCompiled() const;
         Value getShouldCompileValue();
 
@@ -264,6 +285,12 @@ public:
         bool shouldInhibitWarnings() const;
 
         bool isModuleCode() const;
+
+        Value getCompilerFlagSchemeValue();
+        String getCompilerFlagSchemeString() const;
+
+        void setCompilerFlagScheme (const String&);
+        void clearCurrentCompilerFlagScheme();
 
         //==============================================================================
         bool canContain (const Item& child) const;
@@ -289,6 +316,8 @@ public:
 
         Icon getIcon (bool isOpen = false) const;
         bool isIconCrossedOut() const;
+
+        bool needsSaving() const noexcept;
 
         Project& project;
         ValueTree state;
@@ -319,7 +348,7 @@ public:
         ProjectExporter& operator*() const       { return *exporter; }
         ProjectExporter* operator->() const      { return exporter.get(); }
 
-        ScopedPointer<ProjectExporter> exporter;
+        std::unique_ptr<ProjectExporter> exporter;
         int index;
 
     private:
@@ -338,7 +367,12 @@ public:
     bool isConfigFlagEnabled (const String& name, bool defaultIsEnabled = false) const;
 
     //==============================================================================
-    EnabledModuleList& getModules();
+    EnabledModuleList& getEnabledModules();
+
+    AvailableModuleList& getExporterPathsModuleList();
+    void rescanExporterPathModules (bool async = false);
+
+    std::pair<String, File> getModuleWithID (const String&);
 
     //==============================================================================
     String getFileTemplate (const String& templateName);
@@ -351,7 +385,6 @@ public:
     void valueTreeChildAdded (ValueTree&, ValueTree&) override;
     void valueTreeChildRemoved (ValueTree&, ValueTree&, int) override;
     void valueTreeChildOrderChanged (ValueTree&, int, int) override;
-    void valueTreeParentChanged (ValueTree&) override;
 
     //==============================================================================
     UndoManager* getUndoManagerFor (const ValueTree&) const             { return nullptr; }
@@ -384,21 +417,25 @@ public:
     bool shouldSendGUIBuilderAnalyticsEvent() noexcept;
 
     //==============================================================================
-    CompileEngineSettings& getCompileEngineSettings()    { return compileEngineSettings; }
+    CompileEngineSettings& getCompileEngineSettings()    { return *compileEngineSettings; }
 
 private:
     ValueTree projectRoot  { Ids::JUCERPROJECT };
 
-    ValueWithDefault projectNameValue, projectUIDValue, projectTypeValue, versionValue, bundleIdentifierValue, companyNameValue, companyCopyrightValue,
-                     companyWebsiteValue, companyEmailValue, displaySplashScreenValue, reportAppUsageValue, splashScreenColourValue, cppStandardValue,
-                     headerSearchPathsValue, preprocessorDefsValue, userNotesValue, maxBinaryFileSizeValue, includeBinaryDataInJuceHeaderValue, binaryDataNamespaceValue;
+    ValueWithDefault projectNameValue, projectUIDValue, projectLineFeedValue, projectTypeValue, versionValue, bundleIdentifierValue, companyNameValue,
+                     companyCopyrightValue, companyWebsiteValue, companyEmailValue, displaySplashScreenValue, reportAppUsageValue, splashScreenColourValue, cppStandardValue,
+                     headerSearchPathsValue, preprocessorDefsValue, userNotesValue, maxBinaryFileSizeValue, includeBinaryDataInJuceHeaderValue, binaryDataNamespaceValue,
+                     compilerFlagSchemesValue, postExportShellCommandPosixValue, postExportShellCommandWinValue;
 
     ValueWithDefault pluginFormatsValue, pluginNameValue, pluginDescriptionValue, pluginManufacturerValue, pluginManufacturerCodeValue,
                      pluginCodeValue, pluginChannelConfigsValue, pluginCharacteristicsValue, pluginAUExportPrefixValue, pluginAAXIdentifierValue,
-                     pluginAUMainTypeValue, pluginRTASCategoryValue, pluginVSTCategoryValue, pluginVST3CategoryValue, pluginAAXCategoryValue;
+                     pluginAUMainTypeValue, pluginAUSandboxSafeValue, pluginRTASCategoryValue, pluginVSTCategoryValue, pluginVST3CategoryValue, pluginAAXCategoryValue,
+                     pluginVSTNumMidiInputsValue, pluginVSTNumMidiOutputsValue;
 
     //==============================================================================
-    CompileEngineSettings compileEngineSettings  { projectRoot };
+    std::unique_ptr<CompileEngineSettings> compileEngineSettings;
+    std::unique_ptr<EnabledModuleList> enabledModuleList;
+    std::unique_ptr<AvailableModuleList> exporterPathsModuleList;
 
     //==============================================================================
     bool shouldWriteLegacyPluginFormatSettings = false;
@@ -427,7 +464,6 @@ private:
 
     //==============================================================================
     friend class Item;
-    ScopedPointer<EnabledModuleList> enabledModulesList;
     bool isSaving = false;
     Time modificationTime;
     StringPairArray parsedPreprocessorDefs;
@@ -442,7 +478,8 @@ private:
     void createAudioPluginPropertyEditors (PropertyListBuilder& props);
 
     //==============================================================================
-    void updateTitle();
+    void updateTitleDependencies();
+    void updateCompanyNameDependencies();
     void updateProjectSettings();
     ValueTree getConfigurations() const;
     ValueTree getConfigNode();

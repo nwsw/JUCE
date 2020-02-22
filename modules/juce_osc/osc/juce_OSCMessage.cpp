@@ -63,12 +63,22 @@ const OSCArgument& OSCMessage::operator[] (const int i) const noexcept
     return arguments.getReference (i);
 }
 
-OSCArgument* OSCMessage::begin() const noexcept
+OSCArgument* OSCMessage::begin() noexcept
 {
     return arguments.begin();
 }
 
-OSCArgument* OSCMessage::end() const noexcept
+const OSCArgument* OSCMessage::begin() const noexcept
+{
+    return arguments.begin();
+}
+
+OSCArgument* OSCMessage::end() noexcept
+{
+    return arguments.end();
+}
+
+const OSCArgument* OSCMessage::end() const noexcept
 {
     return arguments.end();
 }
@@ -82,8 +92,10 @@ void OSCMessage::clear()
 void OSCMessage::addInt32 (int32 value)             { arguments.add (OSCArgument (value)); }
 void OSCMessage::addFloat32 (float value)           { arguments.add (OSCArgument (value)); }
 void OSCMessage::addString (const String& value)    { arguments.add (OSCArgument (value)); }
-void OSCMessage::addBlob (const MemoryBlock& blob)  { arguments.add (OSCArgument (blob)); }
+void OSCMessage::addBlob (MemoryBlock blob)         { arguments.add (OSCArgument (std::move (blob))); }
+void OSCMessage::addColour (OSCColour colour)       { arguments.add (OSCArgument (colour)); }
 void OSCMessage::addArgument (OSCArgument arg)      { arguments.add (arg); }
+
 
 //==============================================================================
 //==============================================================================
@@ -92,7 +104,9 @@ void OSCMessage::addArgument (OSCArgument arg)      { arguments.add (arg); }
 class OSCMessageTests  : public UnitTest
 {
 public:
-    OSCMessageTests() : UnitTest ("OSCMessage class", "OSC") {}
+    OSCMessageTests()
+        : UnitTest ("OSCMessage class", UnitTestCategories::osc)
+    {}
 
     void runTest()
     {
@@ -102,11 +116,12 @@ public:
             expectEquals (msg.size(), 0);
             expect (msg.getAddressPattern().toString() == "/test/param0");
 
-            const int numTestArgs = 4;
+            const int numTestArgs = 5;
 
             const int testInt = 42;
             const float testFloat = 3.14159f;
             const String testString = "Hello, World!";
+            const OSCColour testColour = { 10, 20, 150, 200 };
 
             const uint8 testBlobData[5] = { 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
             const MemoryBlock testBlob (testBlobData,  sizeof (testBlobData));
@@ -115,6 +130,7 @@ public:
             msg.addFloat32 (testFloat);
             msg.addString (testString);
             msg.addBlob (testBlob);
+            msg.addColour (testColour);
 
             expectEquals (msg.size(), numTestArgs);
 
@@ -122,20 +138,23 @@ public:
             expectEquals (msg[1].getType(), OSCTypes::float32);
             expectEquals (msg[2].getType(), OSCTypes::string);
             expectEquals (msg[3].getType(), OSCTypes::blob);
+            expectEquals (msg[4].getType(), OSCTypes::colour);
 
             expect (msg[0].isInt32());
             expect (msg[1].isFloat32());
             expect (msg[2].isString());
             expect (msg[3].isBlob());
+            expect (msg[4].isColour());
 
             expectEquals (msg[0].getInt32(), testInt);
             expectEquals (msg[1].getFloat32(), testFloat);
             expectEquals (msg[2].getString(), testString);
             expect (msg[3].getBlob() == testBlob);
+            expect (msg[4].getColour().toInt32() == testColour.toInt32());
 
             expect (msg.begin() + numTestArgs == msg.end());
 
-            OSCArgument* arg = msg.begin();
+            auto arg = msg.begin();
             expect (arg->isInt32());
             expectEquals (arg->getInt32(), testInt);
             ++arg;
@@ -146,7 +165,10 @@ public:
             expectEquals (arg->getString(), testString);
             ++arg;
             expect (arg->isBlob());
-            expect(arg->getBlob() == testBlob);
+            expect (arg->getBlob() == testBlob);
+            ++arg;
+            expect (arg->isColour());
+            expect (arg->getColour().toInt32() == testColour.toInt32());
             ++arg;
             expect (arg == msg.end());
         }
@@ -201,6 +223,6 @@ public:
 
 static OSCMessageTests OSCMessageUnitTests;
 
-#endif // JUCE_UNIT_TESTS
+#endif
 
 } // namespace juce

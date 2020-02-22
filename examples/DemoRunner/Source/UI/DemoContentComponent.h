@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "../Demos/JUCEDemos.h"
 
 struct DemoContent;
@@ -37,7 +37,7 @@ class DemoContentComponent  : public TabbedComponent
 {
 public:
     DemoContentComponent (Component& mainComponent, std::function<void(bool)> demoChangedCallback);
-    ~DemoContentComponent();
+    ~DemoContentComponent() override;
 
     void resized() override;
 
@@ -53,10 +53,10 @@ public:
 private:
     std::function<void(bool)> demoChangedCallback;
 
-    ScopedPointer<DemoContent> demoContent;
+    std::unique_ptr<DemoContent> demoContent;
 
    #if ! (JUCE_ANDROID || JUCE_IOS)
-    ScopedPointer<CodeContent> codeContent;
+    std::unique_ptr<CodeContent> codeContent;
    #endif
 
     String currentDemoCategory;

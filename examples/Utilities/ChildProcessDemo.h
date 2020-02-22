@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2017, linux_make
+ exporters:        xcode_mac, vs2019, linux_make
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Console
  mainClass:        ChildProcessDemo
@@ -67,10 +69,8 @@ static MemoryBlock valueTreeToMemoryBlock (const ValueTree& v)
 
 static String valueTreeToString (const ValueTree& v)
 {
-    ScopedPointer<XmlElement> xml (v.createXml());
-
-    if (xml.get() != nullptr)
-        return xml->createDocument ({}, true, false);
+    if (auto xml = v.createXml())
+        return xml->toString (XmlElement::TextFormat().singleLine().withoutHeader());
 
     return {};
 }
@@ -103,7 +103,7 @@ public:
         setSize (500, 500);
     }
 
-    ~ChildProcessDemo()
+    ~ChildProcessDemo() override
     {
         masterProcess.reset();
     }
@@ -201,7 +201,7 @@ public:
     };
 
     //==============================================================================
-    ScopedPointer<DemoMasterProcess> masterProcess;
+    std::unique_ptr<DemoMasterProcess> masterProcess;
 
 private:
     TextButton launchButton  { "Launch Child Process" };
@@ -284,7 +284,7 @@ public:
 */
 bool invokeChildProcessDemo (const String& commandLine)
 {
-    ScopedPointer<DemoSlaveProcess> slave (new DemoSlaveProcess());
+    std::unique_ptr<DemoSlaveProcess> slave (new DemoSlaveProcess());
 
     if (slave->initialiseFromCommandLine (commandLine, demoCommandLineUID))
     {
@@ -316,7 +316,7 @@ bool invokeChildProcessDemo (const String& commandLine)
          if (invokeChildProcessDemo (commandLine))
              return;
 
-         mainWindow = new MainWindow ("ChildProcessDemo", new ChildProcessDemo());
+         mainWindow.reset (new MainWindow ("ChildProcessDemo", new ChildProcessDemo()));
      }
 
      void shutdown() override                                { mainWindow = nullptr; }
@@ -346,7 +346,8 @@ bool invokeChildProcessDemo (const String& commandLine)
      private:
          JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainWindow)
      };
-     ScopedPointer<MainWindow> mainWindow;
+
+     std::unique_ptr<MainWindow> mainWindow;
  };
 
  //==============================================================================

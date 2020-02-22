@@ -243,11 +243,9 @@ private:
 //==============================================================================
 MainComponent::MainComponent()
 {
-    contentComponent = new DemoContentComponent (*this, [this] (bool isHeavyweight)
+    contentComponent.reset (new DemoContentComponent (*this, [this] (bool isHeavyweight)
     {
-       #if (JUCE_ANDROID || JUCE_IOS)
         demosPanel.showOrHide (false);
-       #endif
 
         if (isHeavyweight)
         {
@@ -260,12 +258,12 @@ MainComponent::MainComponent()
 
         isShowingHeavyweightDemo = isHeavyweight;
         resized();
-    });
+    }));
 
     demosPanel.setContent (new DemoList (*contentComponent));
     demosPanel.setTitleBarComponent (new SidePanelHeader (*this), true);
 
-    addAndMakeVisible (contentComponent);
+    addAndMakeVisible (contentComponent.get());
     addAndMakeVisible (showDemosButton);
     addAndMakeVisible (demosPanel);
 
@@ -306,7 +304,6 @@ MainComponent::MainComponent()
 MainComponent::~MainComponent()
 {
     contentComponent->clearCurrentDemo();
-    sharedAudioDeviceManager.reset();
 }
 
 //==============================================================================

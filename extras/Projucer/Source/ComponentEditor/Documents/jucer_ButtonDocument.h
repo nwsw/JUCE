@@ -50,13 +50,13 @@ public:
 
     int chooseBestEnabledPaintRoutine (int paintRoutineWanted) const;
 
-    ComponentLayout* getComponentLayout() const                 { return 0; }
+    ComponentLayout* getComponentLayout() const                 { return nullptr; }
 
     void addExtraClassProperties (PropertyPanel&);
 
     //==============================================================================
-    XmlElement* createXml() const;
-    bool loadFromXml (const XmlElement& xml);
+    std::unique_ptr<XmlElement> createXml() const;
+    bool loadFromXml (const XmlElement&);
 
     void fillInGeneratedCode (GeneratedCode& code) const;
     void fillInPaintCode (GeneratedCode& code) const;
@@ -67,6 +67,6 @@ public:
                              StringArray& initialContents) const;
 
     //==============================================================================
-    ScopedPointer<PaintRoutine> paintRoutines[7];
+    std::unique_ptr<PaintRoutine> paintRoutines[7];
     bool paintStatesEnabled [7];
 };

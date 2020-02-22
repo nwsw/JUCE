@@ -31,7 +31,9 @@
 
  dependencies:     juce_core, juce_data_structures, juce_events, juce_graphics,
                    juce_gui_basics
- exporters:        xcode_mac, vs2017
+ exporters:        xcode_mac, vs2019
+
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
 
  type:             Component
  mainClass:        ComponentDemo
@@ -90,7 +92,7 @@ public:
         // Adds the child light components and makes them visible
         // within this component.
         // (they currently rely on having a default constructor
-        // so they dont have to be individually initialised)
+        // so they don't have to be individually initialised)
         for (auto i = 0; i < numX * numY; ++i)
             addAndMakeVisible (toggleLights[i]);
     }

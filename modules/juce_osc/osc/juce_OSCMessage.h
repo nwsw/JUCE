@@ -99,28 +99,38 @@ public:
     /** Returns a pointer to the first OSCArgument in the OSCMessage object.
         This method is provided for compatibility with standard C++ iteration mechanisms.
     */
-    OSCArgument* begin() const noexcept;
+    OSCArgument* begin() noexcept;
+
+    /** Returns a pointer to the first OSCArgument in the OSCMessage object.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    const OSCArgument* begin() const noexcept;
 
     /** Returns a pointer to the last OSCArgument in the OSCMessage object.
         This method is provided for compatibility with standard C++ iteration mechanisms.
     */
-    OSCArgument* end() const noexcept;
+    OSCArgument* end() noexcept;
+
+    /** Returns a pointer to the last OSCArgument in the OSCMessage object.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    const OSCArgument* end() const noexcept;
 
     /** Removes all arguments from the OSCMessage. */
     void clear();
 
     //==============================================================================
-    /** Creates a new OSCArgument of type int32 with a given value
+    /** Creates a new OSCArgument of type int32 with the given value,
         and adds it to the OSCMessage object.
     */
     void addInt32 (int32 value);
 
-    /** Creates a new OSCArgument of type float32 with a given value
+    /** Creates a new OSCArgument of type float32 with the given value,
         and adds it to the OSCMessage object.
     */
     void addFloat32 (float value);
 
-    /** Creates a new OSCArgument of type string with a given value
+    /** Creates a new OSCArgument of type string with the given value,
         and adds it to the OSCMessage object.
     */
     void addString (const String& value);
@@ -128,9 +138,14 @@ public:
     /** Creates a new OSCArgument of type blob with binary data content copied from
         the given MemoryBlock.
 
-        Note: if the argument passed is an lvalue, this may copy the binary data.
+        Note: If the argument passed is an lvalue, this may copy the binary data.
     */
-    void addBlob (const MemoryBlock& blob);
+    void addBlob (MemoryBlock blob);
+
+    /** Creates a new OSCArgument of type colour with the given value,
+        and adds it to the OSCMessage object.
+    */
+    void addColour (OSCColour colour);
 
     /** Adds the OSCArgument argument to the OSCMessage object.
 

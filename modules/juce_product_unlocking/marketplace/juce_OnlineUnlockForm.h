@@ -27,7 +27,7 @@
 namespace juce
 {
 
-/** Acts as a GUI which asks the user for their details, and calls the approriate
+/** Acts as a GUI which asks the user for their details, and calls the appropriate
     methods on your OnlineUnlockStatus object to attempt to register the app.
 
     You should create one of these components and add it to your parent window,
@@ -61,7 +61,7 @@ public:
                       bool overlayHasCancelButton = false);
 
     /** Destructor. */
-    ~OnlineUnlockForm();
+    ~OnlineUnlockForm() override;
 
     /** This is called when the form is dismissed (either cancelled or when registration
         succeeds).
@@ -82,7 +82,7 @@ public:
 
 private:
     OnlineUnlockStatus& status;
-    ScopedPointer<BubbleMessageComponent> bubble;
+    std::unique_ptr<BubbleMessageComponent> bubble;
 
     bool showOverlayCancelButton;
 

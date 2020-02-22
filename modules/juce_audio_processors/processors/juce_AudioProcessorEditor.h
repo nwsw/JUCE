@@ -53,7 +53,7 @@ protected:
 
 public:
     /** Destructor. */
-    ~AudioProcessorEditor();
+    ~AudioProcessorEditor() override;
 
 
     //==============================================================================
@@ -177,7 +177,7 @@ public:
      */
     void setBoundsConstrained (Rectangle<int> newBounds);
 
-    ScopedPointer<ResizableCornerComponent> resizableCorner;
+    std::unique_ptr<ResizableCornerComponent> resizableCorner;
 
 private:
     //==============================================================================
@@ -193,14 +193,17 @@ private:
         JUCE_DECLARE_NON_COPYABLE (AudioProcessorEditorListener)
     };
 
+    ComponentPeer* createNewPeer (int styleFlags, void*) override;
+
     //==============================================================================
     void initialise();
     void editorResized (bool wasResized);
     void updatePeer();
     void attachConstrainer (ComponentBoundsConstrainer*);
+    void attachResizableCornerComponent();
 
     //==============================================================================
-    ScopedPointer<AudioProcessorEditorListener> resizeListener;
+    std::unique_ptr<AudioProcessorEditorListener> resizeListener;
     bool resizable;
     ComponentBoundsConstrainer defaultConstrainer;
     ComponentBoundsConstrainer* constrainer = {};

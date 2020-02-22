@@ -24,7 +24,7 @@
   ==============================================================================
 */
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include <JuceHeader.h>
 #include "../../Assets/DemoUtilities.h"
 
 #include "UI/MainComponent.h"
@@ -37,7 +37,8 @@
  {
      DemoTaskbarComponent()
      {
-         setIconImage (getImageFromAssets ("juce_icon.png"));
+         setIconImage (getImageFromAssets ("juce_icon.png"),
+                       getImageFromAssets ("juce_icon_template.png"));
          setIconTooltip ("JUCE demo runner!");
      }
 
@@ -73,12 +74,19 @@
  };
 #endif
 
+std::unique_ptr<AudioDeviceManager> sharedAudioDeviceManager;
+
 //==============================================================================
 class DemoRunnerApplication  : public JUCEApplication
 {
 public:
     //==============================================================================
     DemoRunnerApplication() {}
+
+    ~DemoRunnerApplication() override
+    {
+        sharedAudioDeviceManager.reset();
+    }
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }
@@ -93,12 +101,14 @@ public:
         // (This function call is for one of the demos, which involves launching a child process)
         if (invokeChildProcessDemo (commandLine))
             return;
+      #else
+        ignoreUnused (commandLine);
       #endif
 
-        mainWindow = new MainAppWindow (getApplicationName());
+        mainWindow.reset (new MainAppWindow (getApplicationName()));
     }
 
-    void backButtonPressed() override    { mainWindow->getMainComponent().getSidePanel().showOrHide (false); }
+    bool backButtonPressed() override    { mainWindow->getMainComponent().getSidePanel().showOrHide (false); return true; }
     void shutdown() override             { mainWindow = nullptr; }
 
     //==============================================================================
@@ -120,6 +130,7 @@ private:
 
            #if JUCE_IOS || JUCE_ANDROID
             setFullScreen (true);
+            Desktop::getInstance().setOrientationsEnabled (Desktop::rotatedClockwise | Desktop::rotatedAntiClockwise);
            #else
             setBounds ((int) (0.1f * getParentWidth()),
                        (int) (0.1f * getParentHeight()),
@@ -131,7 +142,7 @@ private:
             setVisible (true);
 
            #if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
-            taskbarIcon = new DemoTaskbarComponent();
+            taskbarIcon.reset (new DemoTaskbarComponent());
            #endif
         }
 
@@ -141,12 +152,12 @@ private:
         MainComponent& getMainComponent()    { return *dynamic_cast<MainComponent*> (getContentComponent()); }
 
     private:
-        ScopedPointer<Component> taskbarIcon;
+        std::unique_ptr<Component> taskbarIcon;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainAppWindow)
     };
 
-    ScopedPointer<MainAppWindow> mainWindow;
+    std::unique_ptr<MainAppWindow> mainWindow;
 };
 
 //==============================================================================

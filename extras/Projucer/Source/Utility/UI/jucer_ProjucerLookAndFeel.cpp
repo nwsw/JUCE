@@ -41,8 +41,6 @@ void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool
     const auto area = button.getActiveArea();
     auto backgroundColour = findColour (button.isFrontTab() ? secondaryBackgroundColourId
                                                             : inactiveTabBackgroundColourId);
-    auto iconColour = findColour (button.isFrontTab() ? activeTabIconColourId
-                                                      : inactiveTabIconColourId);
 
     g.setColour (backgroundColour);
     g.fillRect (area);
@@ -50,6 +48,9 @@ void ProjucerLookAndFeel::drawTabButton (TabBarButton& button, Graphics& g, bool
     const auto alpha = button.isEnabled() ? ((isMouseOver || isMouseDown) ? 1.0f : 0.8f) : 0.3f;
 
    #ifndef BUILDING_JUCE_COMPILEENGINE
+    auto iconColour = findColour (button.isFrontTab() ? activeTabIconColourId
+                                                      : inactiveTabIconColourId);
+
     if (button.getName() == "Project")
     {
         auto icon = Icon (getIcons().closedFolder, iconColour.withMultipliedAlpha (alpha));
@@ -161,7 +162,8 @@ void ProjucerLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& button, b
         g.setOpacity (0.5f);
 
     bool isTextEmpty = button.getButtonText().isEmpty();
-    bool isPropertyComponentChild = (dynamic_cast<BooleanPropertyComponent*> (button.getParentComponent()) != nullptr);
+    bool isPropertyComponentChild = (dynamic_cast<BooleanPropertyComponent*> (button.getParentComponent()) != nullptr
+                                     || dynamic_cast<MultiChoicePropertyComponent*> (button.getParentComponent()) != nullptr);
 
     auto bounds = button.getLocalBounds();
 
@@ -479,7 +481,7 @@ void ProjucerLookAndFeel::setupColours()
 {
     auto& colourScheme = getCurrentColourScheme();
 
-    if (colourScheme == getDarkColourScheme())
+    if (colourScheme == getDarkColourScheme() || colourScheme == getProjucerDarkColourScheme())
     {
         setColour (backgroundColourId,                   Colour (0xff323e44));
         setColour (secondaryBackgroundColourId,          Colour (0xff263238));
@@ -500,7 +502,7 @@ void ProjucerLookAndFeel::setupColours()
         setColour (widgetBackgroundColourId,             Colour (0xff495358));
         setColour (secondaryWidgetBackgroundColourId,    Colour (0xff303b41));
 
-        colourScheme.setUIColour (LookAndFeel_V4::ColourScheme::UIColour::defaultFill, Colour (0xffa45c94));
+        colourScheme = getProjucerDarkColourScheme();
     }
     else if (colourScheme == getGreyColourScheme())
     {
@@ -534,7 +536,7 @@ void ProjucerLookAndFeel::setupColours()
         setColour (userButtonBackgroundColourId,         Colour (0xff42a2c8));
         setColour (defaultIconColourId,                  Colours::white);
         setColour (treeIconColourId,                     Colour (0xffa9a9a9));
-        setColour (defaultHighlightColourId,             Colour (0xffffd05b));
+        setColour (defaultHighlightColourId,             Colours::orange);
         setColour (defaultHighlightedTextColourId,       Colour (0xff585656));
         setColour (codeEditorLineNumberColourId,         Colour (0xff888888));
         setColour (activeTabIconColourId,                Colour (0xff42a2c8));

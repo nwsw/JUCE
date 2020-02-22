@@ -20,6 +20,7 @@
   ==============================================================================
 */
 
+
 /*******************************************************************************
  The block below describes the properties of this module, and is read by
  the Projucer to automatically generate project code that uses it.
@@ -29,15 +30,16 @@
 
  BEGIN_JUCE_MODULE_DECLARATION
 
-  ID:               juce_blocks_basics
-  vendor:           juce
-  version:          5.3.1
-  name:             Provides low-level control over ROLI BLOCKS devices
-  description:      JUCE wrapper for low-level control over ROLI BLOCKS devices.
-  website:          http://developer.roli.com
-  license:          ISC
+  ID:                 juce_blocks_basics
+  vendor:             juce
+  version:            5.4.7
+  name:               Provides low-level control over ROLI BLOCKS devices
+  description:        JUCE wrapper for low-level control over ROLI BLOCKS devices.
+  website:            http://developer.roli.com
+  license:            ISC
+  minimumCppStandard: 14
 
-  dependencies:     juce_events juce_audio_devices
+  dependencies:       juce_events juce_audio_devices
 
  END_JUCE_MODULE_DECLARATION
 
@@ -50,9 +52,9 @@
 #include <juce_events/juce_events.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 
-#if (! defined (JUCE_STDLIB_HAS_STD_FUNCTION_SUPPORT)) || (! defined (JUCE_HAS_CONSTEXPR))
+#if ! JUCE_HAS_CONSTEXPR
  #ifndef JUCE_DEMO_RUNNER
-  #error "juce_blocks_basics module requires your compiler to have a newer version of the standard library"
+  #error "The juce_blocks_basics module requires a compiler that supports constexpr"
  #endif
 #else
 
@@ -73,7 +75,9 @@ namespace juce
 #include "blocks/juce_ControlButton.h"
 #include "blocks/juce_TouchList.h"
 #include "blocks/juce_StatusLight.h"
+#include "blocks/juce_BlocksVersion.h"
 #include "topology/juce_Topology.h"
+#include "topology/juce_BlockGraph.h"
 #include "topology/juce_TopologySource.h"
 #include "topology/juce_PhysicalTopologySource.h"
 #include "topology/juce_RuleBasedTopologySource.h"
@@ -84,7 +88,6 @@ namespace juce
 {
  #include "littlefoot/juce_LittleFootRunner.h"
  #include "littlefoot/juce_LittleFootCompiler.h"
- #include "littlefoot/juce_LittleFootRemoteHeap.h"
 }
 
 #endif

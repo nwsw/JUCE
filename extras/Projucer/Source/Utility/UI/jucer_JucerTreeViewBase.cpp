@@ -31,20 +31,18 @@
 //==============================================================================
 void TreePanelBase::setRoot (JucerTreeViewBase* root)
 {
-    rootItem = root;
+    rootItem.reset (root);
     tree.setRootItem (root);
     tree.getRootItem()->setOpen (true);
 
     if (project != nullptr)
     {
-        const ScopedPointer<XmlElement> treeOpenness (project->getStoredProperties()
-                                                          .getXmlValue (opennessStateKey));
-        if (treeOpenness != nullptr)
+        if (auto treeOpenness = project->getStoredProperties().getXmlValue (opennessStateKey))
         {
             tree.restoreOpennessState (*treeOpenness, true);
 
             for (int i = tree.getNumSelectedItems(); --i >= 0;)
-                if (JucerTreeViewBase* item = dynamic_cast<JucerTreeViewBase*> (tree.getSelectedItem (i)))
+                if (auto item = dynamic_cast<JucerTreeViewBase*> (tree.getSelectedItem (i)))
                     item->cancelDelayedSelectionTimer();
         }
     }
@@ -54,7 +52,7 @@ void TreePanelBase::saveOpenness()
 {
     if (project != nullptr)
     {
-        ScopedPointer<XmlElement> opennessState (tree.getOpennessState (true));
+        std::unique_ptr<XmlElement> opennessState (tree.getOpennessState (true));
 
         if (opennessState != nullptr)
             project->getStoredProperties().setValue (opennessStateKey, opennessState.get());
@@ -118,7 +116,7 @@ Colour JucerTreeViewBase::getContentColour (bool isIcon) const
     return getOwnerView()->findColour (isIcon ? treeIconColourId : defaultTextColourId);
 }
 
-void JucerTreeViewBase::paintContent (Graphics& g, const Rectangle<int>& area)
+void JucerTreeViewBase::paintContent (Graphics& g, Rectangle<int> area)
 {
     g.setFont (getFont());
     g.setColour (getContentColour (false));
@@ -243,7 +241,7 @@ void JucerTreeViewBase::itemSelectionChanged (bool isNowSelected)
 {
     if (isNowSelected)
     {
-        delayedSelectionTimer = new ItemSelectionTimer (*this);
+        delayedSelectionTimer.reset (new ItemSelectionTimer (*this));
         delayedSelectionTimer->startTimer (getMillisecsAllowedForDragGesture());
     }
     else

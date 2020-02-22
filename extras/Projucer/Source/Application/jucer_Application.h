@@ -96,6 +96,7 @@ public:
     void createNewPIP();
     void askUserToOpenFile();
     bool openFile (const File&);
+    void saveAllDocuments();
     bool closeAllDocuments (bool askUserToSave);
     bool closeAllMainWindows();
     void closeAllMainWindowsAndQuitIfNeeded();
@@ -122,7 +123,6 @@ public:
     void launchTutorialsBrowser();
 
     void updateAllBuildTabs();
-    LatestVersionChecker* createVersionChecker() const;
 
     //==============================================================================
     void licenseStateChanged (const LicenseState&) override;
@@ -139,78 +139,77 @@ public:
     void setAnalyticsEnabled (bool);
 
     //==============================================================================
+    void rescanJUCEPathModules();
+    void rescanUserPathModules();
+
+    AvailableModuleList& getJUCEPathModuleList()     { return jucePathModuleList; }
+    AvailableModuleList& getUserPathsModuleList()    { return userPathsModuleList; }
+
+    //==============================================================================
     ProjucerLookAndFeel lookAndFeel;
 
-    ScopedPointer<StoredSettings> settings;
-    ScopedPointer<Icons> icons;
+    std::unique_ptr<StoredSettings> settings;
+    std::unique_ptr<Icons> icons;
 
     struct MainMenuModel;
-    ScopedPointer<MainMenuModel> menuModel;
+    std::unique_ptr<MainMenuModel> menuModel;
 
     MainWindowList mainWindowList;
     OpenDocumentManager openDocumentManager;
-    ScopedPointer<ApplicationCommandManager> commandManager;
+    std::unique_ptr<ApplicationCommandManager> commandManager;
 
-    ScopedPointer<Component> utf8Window, svgPathWindow, aboutWindow, applicationUsageDataWindow,
-                             pathsWindow, editorColourSchemeWindow, pipCreatorWindow;
+    std::unique_ptr<Component> utf8Window, svgPathWindow, aboutWindow, applicationUsageDataWindow,
+                               pathsWindow, editorColourSchemeWindow, pipCreatorWindow;
 
-    ScopedPointer<FileLogger> logger;
+    std::unique_ptr<FileLogger> logger;
 
     bool isRunningCommandLine;
-    ScopedPointer<ChildProcessCache> childProcessCache;
-    ScopedPointer<LicenseController> licenseController;
+    std::unique_ptr<ChildProcessCache> childProcessCache;
+    std::unique_ptr<LicenseController> licenseController;
 
 private:
-    void* server = nullptr;
-
-    ScopedPointer<LatestVersionChecker> versionChecker;
-    TooltipWindow tooltipWindow;
-
-    void loginOrLogout();
-
-    bool checkEULA();
-    bool currentEULAHasBeenAcceptedPreviously() const;
-    String getEULAChecksumProperty() const;
-    void setCurrentEULAAccepted (bool hasBeenAccepted) const;
-
+    //==============================================================================
     void handleAsyncUpdate() override;
     void initCommandManager();
-
-    void deleteTemporaryFiles() const noexcept;
 
     void createExamplesPopupMenu (PopupMenu&) noexcept;
     Array<File> getSortedExampleDirectories() noexcept;
     Array<File> getSortedExampleFilesInDirectory (const File&) const noexcept;
-
     bool findWindowAndOpenPIP (const File&);
-
-    File getJUCEExamplesDirectoryPathFromGlobal() noexcept;
     void findAndLaunchExample (int);
-    File findDemoRunnerExecutable() noexcept;
-    File findDemoRunnerProject() noexcept;
+
+    void checkIfGlobalJUCEPathHasChanged();
+    File tryToFindDemoRunnerExecutable();
+    File tryToFindDemoRunnerProject();
     void launchDemoRunner();
-
-    int numExamples = 0;
-    ScopedPointer<AlertWindow> demoRunnerAlert;
-
-   #if JUCE_LINUX
-    ChildProcess makeProcess;
-   #endif
 
     void resetAnalytics() noexcept;
     void setupAnalytics();
 
     void showSetJUCEPathAlert();
-    ScopedPointer<AlertWindow> pathAlert;
 
-    //==============================================================================
     void setColourScheme (int index, bool saveSetting);
-
     void setEditorColourScheme (int index, bool saveSetting);
     void updateEditorColourSchemeIfNeeded();
 
-    int selectedColourSchemeIndex = 0;
+    //==============================================================================
+    void* server = nullptr;
 
-    int selectedEditorColourSchemeIndex = 0;
-    int numEditorColourSchemes = 0;
+    TooltipWindow tooltipWindow;
+
+    AvailableModuleList jucePathModuleList, userPathsModuleList;
+
+    int numExamples = 0;
+    std::unique_ptr<AlertWindow> demoRunnerAlert;
+    std::unique_ptr<AlertWindow> pathAlert;
+    bool hasScannedForDemoRunnerExecutable = false, hasScannedForDemoRunnerProject = false;
+    File lastJUCEPath, lastDemoRunnerExectuableFile, lastDemoRunnerProjectFile;
+   #if JUCE_LINUX
+    ChildProcess makeProcess;
+   #endif
+
+    int selectedColourSchemeIndex = 0, selectedEditorColourSchemeIndex = 0;
+
+    //==============================================================================
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ProjucerApplication)
 };

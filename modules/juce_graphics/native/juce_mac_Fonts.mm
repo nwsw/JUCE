@@ -41,7 +41,7 @@ namespace CoreTextTypeLayout
         if (! availableStyles.contains (style))
         {
             if (font.isItalic())  // Fake-up an italic font if there isn't a real one.
-                requiredTransform = CGAffineTransformMake (1.0f, 0, 0.25f, 1.0f, 0, 0);
+                requiredTransform = CGAffineTransformMake (1.0f, 0, 0.1f, 1.0f, 0, 0);
 
             return availableStyles[0];
         }
@@ -239,7 +239,7 @@ namespace CoreTextTypeLayout
                 {
                     extraKerning *= attr.font.getHeight();
 
-                    auto numberRef = CFNumberCreate (0, kCFNumberFloatType, &extraKerning);
+                    auto numberRef = CFNumberCreate (nullptr, kCFNumberFloatType, &extraKerning);
                     CFAttributedStringSetAttribute (attribString, range, kCTKernAttributeName, numberRef);
                     CFRelease (numberRef);
                 }
@@ -276,10 +276,10 @@ namespace CoreTextTypeLayout
 
         CTParagraphStyleSetting settings[] =
         {
-            { kCTParagraphStyleSpecifierAlignment,              sizeof (CTTextAlignment), &ctTextAlignment },
-            { kCTParagraphStyleSpecifierLineBreakMode,          sizeof (CTLineBreakMode), &ctLineBreakMode },
+            { kCTParagraphStyleSpecifierAlignment,              sizeof (CTTextAlignment),    &ctTextAlignment },
+            { kCTParagraphStyleSpecifierLineBreakMode,          sizeof (CTLineBreakMode),    &ctLineBreakMode },
             { kCTParagraphStyleSpecifierBaseWritingDirection,   sizeof (CTWritingDirection), &ctWritingDirection},
-            { kCTParagraphStyleSpecifierLineSpacingAdjustment,  sizeof (CGFloat),         &ctLineSpacing }
+            { kCTParagraphStyleSpecifierLineSpacingAdjustment,  sizeof (CGFloat),            &ctLineSpacing }
         };
 
         auto ctParagraphStyleRef = CTParagraphStyleCreate (settings, (size_t) numElementsInArray (settings));
@@ -292,18 +292,31 @@ namespace CoreTextTypeLayout
         return attribString;
     }
 
-    static CTFrameRef createCTFrame (const AttributedString& text, CGRect bounds)
+    static CTFramesetterRef createCTFramesetter (const AttributedString& text)
     {
         auto attribString = createCFAttributedString (text);
         auto framesetter = CTFramesetterCreateWithAttributedString (attribString);
         CFRelease (attribString);
 
+        return framesetter;
+    }
+
+    static CTFrameRef createCTFrame (CTFramesetterRef framesetter, CGRect bounds)
+    {
         auto path = CGPathCreateMutable();
         CGPathAddRect (path, nullptr, bounds);
 
         auto frame = CTFramesetterCreateFrame (framesetter, CFRangeMake (0, 0), path, nullptr);
-        CFRelease (framesetter);
         CGPathRelease (path);
+
+        return frame;
+    }
+
+    static CTFrameRef createCTFrame (const AttributedString& text, CGRect bounds)
+    {
+        auto framesetter = createCTFramesetter (text);
+        auto frame = createCTFrame (framesetter, bounds);
+        CFRelease (framesetter);
 
         return frame;
     }
@@ -335,38 +348,57 @@ namespace CoreTextTypeLayout
     static void drawToCGContext (const AttributedString& text, const Rectangle<float>& area,
                                  const CGContextRef& context, float flipHeight)
     {
-        Rectangle<float> ctFrameArea;
-        auto verticalJustification = text.getJustification().getOnlyVerticalFlags();
+        auto framesetter = createCTFramesetter (text);
 
         // Ugly hack to fix a bug in OS X Sierra where the CTFrame needs to be slightly
         // larger than the font height - otherwise the CTFrame will be invalid
-        if (verticalJustification == Justification::verticallyCentred)
-            ctFrameArea = area.withSizeKeepingCentre (area.getWidth(), area.getHeight() * 1.1f);
-        else if (verticalJustification == Justification::bottom)
-            ctFrameArea = area.withTop (area.getY() - (area.getHeight() * 0.1f));
-        else
-            ctFrameArea = area.withHeight (area.getHeight() * 1.1f);
 
-        auto frame = createCTFrame (text, CGRectMake ((CGFloat) ctFrameArea.getX(), flipHeight - (CGFloat) ctFrameArea.getBottom(),
-                                                      (CGFloat) ctFrameArea.getWidth(), (CGFloat) ctFrameArea.getHeight()));
+        CFRange fitrange;
+        auto suggestedSingleLineFrameSize =
+            CTFramesetterSuggestFrameSizeWithConstraints (framesetter, CFRangeMake (0, 0), nullptr,
+                                                          CGSizeMake (CGFLOAT_MAX, CGFLOAT_MAX), &fitrange);
+        auto minCTFrameHeight = (float) suggestedSingleLineFrameSize.height;
+
+        auto verticalJustification = text.getJustification().getOnlyVerticalFlags();
+
+        auto ctFrameArea = [area, minCTFrameHeight, verticalJustification]
+        {
+            if (minCTFrameHeight < area.getHeight())
+                return area;
+
+            if (verticalJustification == Justification::verticallyCentred)
+                return area.withSizeKeepingCentre (area.getWidth(), minCTFrameHeight);
+
+            auto frameArea = area.withHeight (minCTFrameHeight);
+
+            if (verticalJustification == Justification::bottom)
+                return frameArea.withBottomY (area.getBottom());
+
+            return frameArea;
+        }();
+
+        auto frame = createCTFrame (framesetter, CGRectMake ((CGFloat) ctFrameArea.getX(), flipHeight - (CGFloat) ctFrameArea.getBottom(),
+                                                             (CGFloat) ctFrameArea.getWidth(), (CGFloat) ctFrameArea.getHeight()));
+        CFRelease (framesetter);
+
+        auto textMatrix = CGContextGetTextMatrix (context);
+        CGContextSaveGState (context);
 
         if (verticalJustification == Justification::verticallyCentred
-             || verticalJustification == Justification::bottom)
+         || verticalJustification == Justification::bottom)
         {
             auto adjust = ctFrameArea.getHeight() - findCTFrameHeight (frame);
 
             if (verticalJustification == Justification::verticallyCentred)
                 adjust *= 0.5f;
 
-            CGContextSaveGState (context);
             CGContextTranslateCTM (context, 0, -adjust);
-            CTFrameDraw (frame, context);
-            CGContextRestoreGState (context);
         }
-        else
-        {
-            CTFrameDraw (frame, context);
-        }
+
+        CTFrameDraw (frame, context);
+
+        CGContextRestoreGState (context);
+        CGContextSetTextMatrix (context, textMatrix);
 
         CFRelease (frame);
     }
@@ -387,19 +419,18 @@ namespace CoreTextTypeLayout
             auto numRuns = CFArrayGetCount (runs);
 
             auto cfrlineStringRange = CTLineGetStringRange (line);
-            auto lineStringEnd = cfrlineStringRange.location + cfrlineStringRange.length - 1;
+            auto lineStringEnd = cfrlineStringRange.location + cfrlineStringRange.length;
             Range<int> lineStringRange ((int) cfrlineStringRange.location, (int) lineStringEnd);
 
             LineInfo lineInfo (frame, line, i);
 
-            auto glyphLine = new TextLayout::Line (lineStringRange,
-                                                   Point<float> ((float) lineInfo.origin.x,
-                                                                 (float) (boundsHeight - lineInfo.origin.y)),
-                                                   (float) lineInfo.ascent,
-                                                   (float) lineInfo.descent,
-                                                   (float) lineInfo.leading,
-                                                   (int) numRuns);
-            glyphLayout.addLine (glyphLine);
+            auto glyphLine = std::make_unique<TextLayout::Line> (lineStringRange,
+                                                                 Point<float> ((float) lineInfo.origin.x,
+                                                                               (float) (boundsHeight - lineInfo.origin.y)),
+                                                                 (float) lineInfo.ascent,
+                                                                 (float) lineInfo.descent,
+                                                                 (float) lineInfo.leading,
+                                                                 (int) numRuns);
 
             for (CFIndex j = 0; j < numRuns; ++j)
             {
@@ -457,6 +488,8 @@ namespace CoreTextTypeLayout
                                                                                              (float) positions.points[k].y),
                                                              (float) advances.advances[k].width));
             }
+
+            glyphLayout.addLine (std::move (glyphLine));
         }
 
         CFRelease (frame);
@@ -469,7 +502,7 @@ class OSXTypeface  : public Typeface
 {
 public:
     OSXTypeface (const Font& font)
-        : Typeface (font.getTypefaceName(), font.getTypefaceStyle()), isMemoryFont (false)
+        : Typeface (font.getTypefaceName(), font.getTypefaceStyle()), canBeUsedForLayout (true)
     {
         ctFontRef = CoreTextTypeLayout::createCTFont (font, referenceFontSize, renderingTransform);
 
@@ -481,7 +514,7 @@ public:
     }
 
     OSXTypeface (const void* data, size_t dataSize)
-        : Typeface ({}, {}), isMemoryFont (true), dataCopy (data, dataSize)
+        : Typeface ({}, {}), canBeUsedForLayout (false), dataCopy (data, dataSize)
     {
         // We can't use CFDataCreate here as this triggers a false positive in ASAN
         // so copy the data manually and use CFDataCreateWithBytesNoCopy
@@ -502,6 +535,11 @@ public:
 
         if (fontRef != nullptr)
         {
+           #if JUCE_MAC && defined (MAC_OS_X_VERSION_10_8) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_8
+            if (SystemStats::getOperatingSystemType() >= SystemStats::OperatingSystemType::MacOSX_10_11)
+                canBeUsedForLayout = CTFontManagerRegisterGraphicsFont (fontRef, nullptr);
+           #endif
+
             ctFontRef = CTFontCreateWithGraphicsFont (fontRef, referenceFontSize, nullptr, nullptr);
 
             if (ctFontRef != nullptr)
@@ -536,21 +574,20 @@ public:
         fontHeightToPointsFactor = referenceFontSize / ctTotalHeight;
 
         const short zero = 0;
-        auto numberRef = CFNumberCreate (0, kCFNumberShortType, &zero);
+        auto numberRef = CFNumberCreate (nullptr, kCFNumberShortType, &zero);
 
         CFStringRef keys[] = { kCTFontAttributeName, kCTLigatureAttributeName };
         CFTypeRef values[] = { ctFontRef, numberRef };
-        attributedStringAtts = CFDictionaryCreate (nullptr, (const void**) &keys, (const void**) &values, numElementsInArray (keys),
+        attributedStringAtts = CFDictionaryCreate (nullptr, (const void**) &keys,
+                                                   (const void**) &values, numElementsInArray (keys),
                                                    &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
         CFRelease (numberRef);
     }
 
-    ~OSXTypeface()
-    {
-        if (attributedStringAtts != nullptr)    CFRelease (attributedStringAtts);
-        if (fontRef != nullptr)                 CGFontRelease (fontRef);
-        if (ctFontRef != nullptr)               CFRelease (ctFontRef);
-    }
+    // The implementation of at least one overridden function needs to be outside
+    // of the class definition to avoid spurious warning messages when dynamically
+    // loading libraries at runtime on macOS...
+    ~OSXTypeface() override;
 
     float getAscent() const override                 { return ascent; }
     float getDescent() const override                { return 1.0f - ascent; }
@@ -650,7 +687,7 @@ public:
     float fontHeightToPointsFactor = 1.0f;
     CGAffineTransform renderingTransform = CGAffineTransformIdentity;
 
-    const bool isMemoryFont;
+    bool canBeUsedForLayout;
 
 private:
     MemoryBlock dataCopy;
@@ -679,6 +716,25 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OSXTypeface)
 };
+
+OSXTypeface::~OSXTypeface()
+{
+    if (attributedStringAtts != nullptr)
+        CFRelease (attributedStringAtts);
+
+    if (fontRef != nullptr)
+    {
+       #if JUCE_MAC && defined (MAC_OS_X_VERSION_10_8) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_8
+        if (dataCopy.getSize() != 0)
+            CTFontManagerUnregisterGraphicsFont (fontRef, nullptr);
+       #endif
+
+        CGFontRelease (fontRef);
+    }
+
+    if (ctFontRef != nullptr)
+        CFRelease (ctFontRef);
+}
 
 CTFontRef getCTFontFromTypeface (const Font& f)
 {
@@ -772,12 +828,19 @@ StringArray Font::findAllTypefaceStyles (const String& family)
 
 
 //==============================================================================
-Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)                  { return new OSXTypeface (font); }
-Typeface::Ptr Typeface::createSystemTypefaceFor (const void* data, size_t size)     { return new OSXTypeface (data, size); }
+Typeface::Ptr Typeface::createSystemTypefaceFor (const Font& font)                  { return *new OSXTypeface (font); }
+Typeface::Ptr Typeface::createSystemTypefaceFor (const void* data, size_t size)     { return *new OSXTypeface (data, size); }
 
-void Typeface::scanFolderForFonts (const File&)
+void Typeface::scanFolderForFonts (const File& folder)
 {
-    jassertfalse; // not implemented on this platform
+    for (auto& file : folder.findChildFiles (File::findFiles, false, "*.otf;*.ttf"))
+    {
+        if (auto urlref = CFURLCreateWithFileSystemPath (kCFAllocatorDefault, file.getFullPathName().toCFString(), kCFURLPOSIXPathStyle, true))
+        {
+            CTFontManagerRegisterFontsForURL (urlref, kCTFontManagerScopeProcess, nullptr);
+            CFRelease (urlref);
+        }
+    }
 }
 
 struct DefaultFontNames
@@ -810,40 +873,20 @@ Typeface::Ptr Font::getDefaultTypefaceForFont (const Font& font)
     return Typeface::createSystemTypefaceFor (newFont);
 }
 
-// Due to an old and unfathomable bug in CoreText which prevents the layout working with
-// typefaces that were loaded from memory, this function checks whether we need to use a
-// fallback layout algorithm.
 static bool canAllTypefacesBeUsedInLayout (const AttributedString& text)
 {
-   #if JUCE_MAC && defined (MAC_OS_X_VERSION_10_11) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_11
-    ignoreUnused (text);
-    return true;
-   #else
-
-   #if JUCE_MAC
-    if (SystemStats::getOperatingSystemType() >= SystemStats::OperatingSystemType::MacOSX_10_11)
-        return true;
-   #endif
-
     auto numCharacterAttributes = text.getNumAttributes();
 
     for (int i = 0; i < numCharacterAttributes; ++i)
     {
-        auto* t = text.getAttribute(i).font.getTypeface();
+        if (auto tf = dynamic_cast<OSXTypeface*> (text.getAttribute(i).font.getTypeface()))
+            if (tf->canBeUsedForLayout)
+                continue;
 
-        if (auto tf = dynamic_cast<OSXTypeface*> (t))
-        {
-            if (tf->isMemoryFont)
-                return false;
-        }
-        else if (dynamic_cast<CustomTypeface*> (t) != nullptr)
-        {
-            return false;
-        }
+        return false;
     }
 
     return true;
-   #endif
 }
 
 bool TextLayout::createNativeLayout (const AttributedString& text)
@@ -854,7 +897,6 @@ bool TextLayout::createNativeLayout (const AttributedString& text)
         return true;
     }
 
-    ignoreUnused (text);
     return false;
 }
 

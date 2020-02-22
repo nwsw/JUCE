@@ -35,6 +35,8 @@
                    juce_events, juce_graphics, juce_gui_basics, juce_gui_extra
  exporters:        xcode_iphone
 
+ moduleFlags:      JUCE_STRICT_REFCOUNTEDPOINTER=1
+
  type:             AudioProcessor
  mainClass:        IAAEffectProcessor
 
@@ -92,7 +94,7 @@ private:
     {
         auto callbackLevel = maxLevel.exchange (0.0);
 
-        auto decayFactor = 0.95;
+        float decayFactor = 0.95f;
 
         if (callbackLevel > level)
             level = callbackLevel;
@@ -150,17 +152,9 @@ public:
          : AudioProcessor (BusesProperties()
                            .withInput  ("Input",  AudioChannelSet::stereo(), true)
                            .withOutput ("Output", AudioChannelSet::stereo(), true)),
-           parameters (*this, nullptr)
+           parameters (*this, nullptr, "InterAppAudioEffect",
+                       { std::make_unique<AudioParameterFloat> ("gain", "Gain", NormalisableRange<float> (0.0f, 1.0f), 1.0f / 3.14f) })
     {
-        parameters.createAndAddParameter ("gain",
-                                          "Gain",
-                                          {},
-                                          NormalisableRange<float> (0.0f, 1.0f),
-                                          (float) (1.0 / 3.14),
-                                          nullptr,
-                                          nullptr);
-
-        parameters.state = ValueTree (Identifier ("InterAppAudioEffect"));
     }
 
     ~IAAEffectProcessor() {}
@@ -186,7 +180,7 @@ public:
 
     void processBlock (AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        auto gain = *parameters.getRawParameterValue ("gain");
+        float gain = *parameters.getRawParameterValue ("gain");
 
         auto totalNumInputChannels  = getTotalNumInputChannels();
         auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -236,15 +230,13 @@ public:
     //==============================================================================
     void getStateInformation (MemoryBlock& destData) override
     {
-        auto xml = ScopedPointer<XmlElement> (parameters.state.createXml());
-        copyXmlToBinary (*xml, destData);
+        if (auto xml = parameters.state.createXml())
+            copyXmlToBinary (*xml, destData);
     }
 
     void setStateInformation (const void* data, int sizeInBytes) override
     {
-        auto xmlState = ScopedPointer<XmlElement> (getXmlFromBinary (data, sizeInBytes));
-
-        if (xmlState.get() != nullptr)
+        if (auto xmlState = getXmlFromBinary (data, sizeInBytes))
             if (xmlState->hasTagName (parameters.state.getType()))
                 parameters.state = ValueTree::fromXml (*xmlState);
     }
@@ -273,13 +265,13 @@ public:
     // meter values directly from the audio thread.
     struct MeterListener
     {
-        virtual ~MeterListener() {};
+        virtual ~MeterListener() {}
 
         virtual void handleNewMeterValue (int, float) = 0;
     };
 
-    void addMeterListener    (MeterListener& listener) { meterListeners.add    (&listener); };
-    void removeMeterListener (MeterListener& listener) { meterListeners.remove (&listener); };
+    void addMeterListener    (MeterListener& listener) { meterListeners.add    (&listener); }
+    void removeMeterListener (MeterListener& listener) { meterListeners.remove (&listener); }
 
 
 private:

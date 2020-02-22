@@ -91,7 +91,7 @@ void PaintElementImage::fillInGeneratedCode (GeneratedCode& code, String& paintM
           << customPaintCode
           << "    //[/UserPaintCustomArguments]\n";
 
-        if (dynamic_cast<const DrawableImage*> (getDrawable()) != 0)
+        if (dynamic_cast<const DrawableImage*> (getDrawable()))
         {
             const String imageVariable ("cachedImage_" + resourceName.replace ("::", "_") + "_" + String (code.getUniqueSuffix()));
 
@@ -101,7 +101,6 @@ void PaintElementImage::fillInGeneratedCode (GeneratedCode& code, String& paintM
                 r << "    g.setColour (Colours::black);\n";
             else
                 r << "    g.setColour (Colours::black.withAlpha (" << CodeHelpers::floatLiteral (opacity, 3) << "));\n";
-
 
             if (mode == stretched)
             {
@@ -132,7 +131,7 @@ void PaintElementImage::fillInGeneratedCode (GeneratedCode& code, String& paintM
                 const String imageVariable ("drawable" + String (code.getUniqueSuffix()));
 
                 code.privateMemberDeclarations
-                    << "ScopedPointer<Drawable> " << imageVariable << ";\n";
+                    << "std::unique_ptr<Drawable> " << imageVariable << ";\n";
 
                 code.constructorCode
                     << imageVariable << " = Drawable::createFromImageData ("
@@ -146,9 +145,9 @@ void PaintElementImage::fillInGeneratedCode (GeneratedCode& code, String& paintM
                 else
                     r << "    g.setColour (Colours::black.withAlpha (" << CodeHelpers::floatLiteral (opacity, 3) << "));\n";
 
-                r << "    jassert (" << imageVariable << " != 0);\n"
-                  << "    if (" << imageVariable << " != 0)\n"
-                  << "        " << imageVariable  << "->drawWithin (g, Rectangle<float> (x, y, width, height),\n"
+                r << "    jassert (" << imageVariable << " != nullptr);\n"
+                  << "    if (" << imageVariable << " != nullptr)\n"
+                  << "        " << imageVariable  << "->drawWithin (g, Rectangle<int> (x, y, width, height).toFloat(),\n"
                   << "    " << String::repeatedString (" ", imageVariable.length() + 18)
                   << (mode == stretched ? "RectanglePlacement::stretchToFit"
                                         : (mode == proportionalReducingOnly ? "RectanglePlacement::centred | RectanglePlacement::onlyReduceInSize"
